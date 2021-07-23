@@ -381,7 +381,7 @@ def parse_args():
                         default='', required=False,
                         help='strategy to be used during backtesting')
 
-    parser.add_argument('--plot', required=False, default='',
+    parser.add_argument('--plot', '-p', required=False, default='',
                         nargs='?', const='{}',
                         metavar='kwargs', help='kwargs in key=value format')
 
@@ -419,7 +419,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     if args.strategy:
-        backtest_strategy(args.strategy, args.optimization, args.plot,
+        backtest_strategy(CLASSES_MAP[args.strategy], args.optimization, args.plot,
                           args.m1_low, args.m1_high,
                           args.m2_low, args.m2_high,
                           args.m3_low, args.m3_high)
