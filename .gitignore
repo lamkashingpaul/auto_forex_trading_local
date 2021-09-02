@@ -1,8 +1,12 @@
 # Vscode settings
 .vscode/
 
-# historical datas
-*datas/
+# Historical data
+*data/
+
+# Backtraders's output
+*reports/
+*plots/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

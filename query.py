@@ -14,7 +14,7 @@ import psycopg2
 import random
 
 # lookup dictionaries and list
-NUMBER_OF_WORKERS = 64
+NUMBER_OF_WORKERS = 16
 
 MY_TABLE_NAME = 'candlesticks_candlestick'
 
@@ -166,6 +166,33 @@ class BuyAndHold(bt.Strategy):
         self.buy(size=lots * self.p.one_lot_size)
 
 
+class SellAndHold(bt.Strategy):
+
+    params = (
+        ('name', 'SellAndHold'),
+        ('one_lot_size', 100000),
+    )
+
+    def log(self, txt, dt=None, doprint=True):
+        ''' Logging function fot this strategy'''
+        if self.params.printlog or doprint:
+            dt = dt or self.datas[0].datetime.date(0)
+            print('%s, %s' % (dt.isoformat(), txt))
+
+    def __init__(self):
+        if self.p.name is None:
+            self.p.name = 'S&H'
+
+    def start(self):
+        # keep the starting cash
+        self.val_start = self.broker.get_cash()
+
+    def nextstart(self):
+        # buy all with the available cash
+        lots = int(self.broker.get_cash() / self.data / self.p.one_lot_size)
+        self.sell(size=lots * self.p.one_lot_size)
+
+
 class MovingAveragesCrossover(bt.Strategy):
 
     params = (
@@ -199,6 +226,44 @@ class MovingAveragesCrossover(bt.Strategy):
 
         elif self.crossover < 0:  # in the market & cross to the downside
             self.close()  # close long position
+
+
+class MovingAveragesCrossoverBAS(bt.Strategy):
+
+    params = (
+        ('name', 'SMA Crossover Buy and Sell'),
+        ('one_lot_size', 100000),
+
+        ('fast_ma_period', 50),
+        ('slow_ma_period', 200)
+    )
+
+    def log(self, txt, dt=None, doprint=True):
+        ''' Logging function fot this strategy'''
+        if self.params.printlog or doprint:
+            dt = dt or self.datas[0].datetime.date(0)
+            print('%s, %s' % (dt.isoformat(), txt))
+
+    def __init__(self):
+        fast_sma = bt.ind.SMA(period=self.p.fast_ma_period)  # fast moving average
+        slow_sma = bt.ind.SMA(period=self.p.slow_ma_period)  # slow moving average
+        self.crossover = bt.ind.CrossOver(fast_sma, slow_sma, plot=False)  # crossover signal
+
+    def start(self):
+        self.val_start = self.broker.get_cash()  # keep the starting cash
+
+    def next(self):
+
+        if not self.position:  # not in the market
+            lots = int(self.broker.get_cash() / self.data / self.p.one_lot_size)
+            if self.crossover > 0:  # if fast crosses slow to the upside
+                self.buy(size=lots * self.p.one_lot_size)  # enter long
+            elif self.crossover < 0:  # if slow crosses fast to the upside
+                self.sell(size=lots * self.p.one_lot_size)  # enter short
+
+        else:  # in the market
+            if self.crossover > 0 or self.crossover < 0:  # 　there is signal
+                self.order_target_size(target=-self.position.size)  # reverse position
 
 
 class RSI(bt.Strategy):
@@ -237,6 +302,47 @@ class RSI(bt.Strategy):
             self.close()  # close long position
 
 
+class RSIBAS(bt.Strategy):
+
+    params = (
+        ('name', 'RSI Buy and Sell'),
+        ('one_lot_size', 100000),
+
+        ('period', 14),
+        ('upperband', 70.0),
+        ('lowerband', 30.0)
+    )
+
+    def log(self, txt, dt=None, doprint=True):
+        ''' Logging function fot this strategy'''
+        if self.params.printlog or doprint:
+            dt = dt or self.datas[0].datetime.date(0)
+            print('%s, %s' % (dt.isoformat(), txt))
+
+    def start(self):
+        self.val_start = self.broker.get_cash()  # keep the starting cash
+
+    def __init__(self):
+        rsi = bt.ind.RSI(period=self.p.period, upperband=self.p.upperband, lowerband=self.p.lowerband)
+        self.buy_signal = bt.ind.CrossOver(rsi, self.p.lowerband, plot=False)
+        self.sell_signal = bt.ind.CrossOver(rsi, self.p.upperband, plot=False)
+
+    def next(self):
+
+        if not self.position:  # not in the market
+            lots = int(self.broker.get_cash() / self.data / self.p.one_lot_size)
+            if self.buy_signal > 0:  # if RSI crossovers lowerband
+                self.buy(size=lots * self.p.one_lot_size)  # enter long
+            elif self.sell_signal > 0:
+                self.sell(size=lots * self.p.one_lot_size)  # enter long
+
+        else:  # in the market
+            if self.position.size < 0 and self.buy_signal > 0:  # having short position and buy signal
+                self.order_target_size(target=-self.position.size)  # reverse position
+            if self.position.size > 0 and self.sell_signal > 0:  # having long position and sell signal
+                self.order_target_size(target=-self.position.size)  # reverse position
+
+
 class MACD(bt.Strategy):
     params = (
         ('name', 'MACD'),
@@ -272,6 +378,46 @@ class MACD(bt.Strategy):
 
         elif self.crossover < 0:  # in the market & cross to the downside
             self.close()  # close long position
+
+
+class MACDBAS(bt.Strategy):
+    params = (
+        ('name', 'MACD Buy and Sell'),
+        ('one_lot_size', 100000),
+
+        ('period_me1', 12),
+        ('period_me2', 26),
+        ('period_signal', 9),
+    )
+
+    def log(self, txt, dt=None, doprint=True):
+        ''' Logging function fot this strategy'''
+        if self.params.printlog or doprint:
+            dt = dt or self.datas[0].datetime.date(0)
+            print('%s, %s' % (dt.isoformat(), txt))
+
+    def start(self):
+        self.val_start = self.broker.get_cash()  # keep the starting cash
+
+    def __init__(self):
+        fast_ema = bt.ind.EMA(period=self.p.period_me1)
+        slow_ema = bt.ind.EMA(period=self.p.period_me2)
+
+        macd = bt.ind.MACDHisto(period_me1=self.p.period_me1, period_me2=self.p.period_me2, period_signal=self.p.period_signal)
+        self.crossover = bt.ind.CrossOver(macd.macd, macd.signal, plot=False)
+
+    def next(self):
+
+        if not self.position:  # not in the market
+            lots = int(self.broker.get_cash() / self.data / self.p.one_lot_size)
+            if self.crossover > 0:  # if MACD crosses signal to the upside
+                self.buy(size=lots * self.p.one_lot_size)  # enter long
+            elif self.crossover < 0:  # if signal crosses MACD to the upside
+                self.sell(size=lots * self.p.one_lot_size)  # enter short
+
+        else:  # in the market
+            if self.crossover > 0 or self.crossover < 0:  # 　there is signal
+                self.order_target_size(target=-self.position.size)  # reverse position
 
 
 class Stochastic(bt.Strategy):
@@ -315,6 +461,55 @@ class Stochastic(bt.Strategy):
 
         elif self.sell_signal:  # in the market & cross to the downside and it happens above upperband
             self.close()  # close long position
+
+
+class StochasticBAS(bt.Strategy):
+    params = (
+        ('name', 'Stochastic Buy and Sell'),
+        ('one_lot_size', 100000),
+
+        ('period', 14),
+        ('period_dfast', 3),
+        ('period_dslow', 3),
+        ('upperband', 80.0),
+        ('lowerband', 20.0),
+    )
+
+    def log(self, txt, dt=None, doprint=True):
+        ''' Logging function fot this strategy'''
+        if self.params.printlog or doprint:
+            dt = dt or self.datas[0].datetime.date(0)
+            print('%s, %s' % (dt.isoformat(), txt))
+
+    def __init__(self):
+        if self.p.name is None:
+            self.p.name = f'Stc({self.p.period})'
+
+        sto = bt.ind.Stochastic(period=self.p.period,
+                                period_dfast=self.p.period_dfast,
+                                period_dslow=self.p.period_dslow,
+                                upperband=self.p.upperband,
+                                lowerband=self.p.lowerband,)
+
+        crossover = bt.ind.CrossOver(sto.percK, sto.percD, plot=False)
+
+        self.buy_signal = bt.And(crossover > 0, sto.percD < sto.p.lowerband)
+        self.sell_signal = bt.And(crossover < 0, sto.percD > sto.p.upperband)
+
+    def next(self):
+
+        if not self.position:  # not in the market
+            lots = int(self.broker.get_cash() / self.data / self.p.one_lot_size)
+            if self.buy_signal:  # if percK crosses percD to the upside and it happens below lowerband
+                self.buy(size=lots * self.p.one_lot_size)  # enter long
+            elif self.sell_signal:
+                self.sell(size=lots * self.p.one_lot_size)  # enter short
+
+        else:  # in the market
+            if self.position.size < 0 and self.buy_signal:  # having short position and buy signal
+                self.order_target_size(target=-self.position.size)  # reverse position
+            if self.position.size > 0 and self.sell_signal:  # having long position and sell signal
+                self.order_target_size(target=-self.position.size)  # reverse position
 
 
 def random_small_datetime_interval(datetime_from, datetime_before, duration):
@@ -366,20 +561,29 @@ def backtest_strategies(strategies, symbol, period, fromdate, todate):
 
 
 def main():
-    durations = [timedelta(days=30), timedelta(days=90), timedelta(days=180)]
+    duration = timedelta(days=90)
     total_datetime_interval = (datetime(2010, 1, 1), datetime(2020, 1, 1))
 
-    strategies = [
-        (BuyAndHold, dict()),
-        (MovingAveragesCrossover, dict(fast_ma_period=50, slow_ma_period=200)),
-        (RSI, dict(period=14)),
-        (MACD, dict(period_me1=12, period_me2=26, period_signal=9)),
-        (Stochastic, dict(period=14)),
+    strategy_sets = [
+        (
+            (BuyAndHold, dict()),
+            (MovingAveragesCrossover, dict(fast_ma_period=50, slow_ma_period=200)),
+            (RSI, dict(period=14)),
+            (MACD, dict(period_me1=12, period_me2=26, period_signal=9)),
+            (Stochastic, dict(period=14))
+        ),
+        (
+            (SellAndHold, dict()),
+            (MovingAveragesCrossoverBAS, dict(fast_ma_period=50, slow_ma_period=200)),
+            (RSIBAS, dict(period=14)),
+            (MACDBAS, dict(period_me1=12, period_me2=26, period_signal=9)),
+            (StochasticBAS, dict(period=14))
+        )
     ]
 
-    fig, ax = plt.subplots(len(strategies), len(durations), sharex='all', sharey='all')
+    fig, ax = plt.subplots(len(strategy_sets[0]), len(strategy_sets), sharex='all', sharey='all')
 
-    for i, duration in enumerate(durations):
+    for i, strategy_set in enumerate(strategy_sets):
 
         rng_interval_generator = small_interval_generator(*total_datetime_interval, duration, 1024)
 
@@ -387,17 +591,17 @@ def main():
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=NUMBER_OF_WORKERS) as executor:
 
-            future_to_rois = {executor.submit(backtest_strategies, strategies, 'EURUSD', 'H1', *interval): interval
+            future_to_rois = {executor.submit(backtest_strategies, strategy_set, 'EURUSD', 'H1', *interval): interval
                               for interval in rng_interval_generator
                               }
 
             for future in concurrent.futures.as_completed(future_to_rois):
                 start_time, end_time = future_to_rois[future]
                 rois = future.result()
-                for (strategy, _), roi in zip(strategies, rois):
+                for (strategy, _), roi in zip(strategy_set, rois):
                     print(f'{strategy.params.name} ROI (from {start_time} to {end_time}): {roi * 100:.2f} %.')
 
-                    results[strategy.params.name].append((start_time, roi))
+                    results[strategy.params.name].append((end_time, roi))
 
         for j, (strategy_name, result) in enumerate(results.items()):
             df = pd.DataFrame(result, columns=['date', 'roi'])
@@ -421,10 +625,11 @@ def main():
     multi = MultiCursor(fig.canvas, fig.axes, color='r', lw=.5, horizOn=True, vertOn=True)
 
     fig.suptitle(f'Random Trading (from {total_datetime_interval[0].date()} to {total_datetime_interval[1].date()}, '
-                 f'period: {", ".join(str(duration.days) for duration in durations)} days)')
+                 f'period: {duration.days} days)')
 
     pickle.dump(fig, open('fig.pickle', 'wb'))
 
+    plt.subplots_adjust(left=0.03, bottom=0.025, right=0.98, top=0.97, wspace=0.0, hspace=0.0)
     plt.show()
 
 
