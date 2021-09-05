@@ -1,4 +1,5 @@
 import backtrader as bt
+from utils.optimization import PBAR
 
 
 class MovingAveragesCrossover(bt.Strategy):
@@ -8,7 +9,7 @@ class MovingAveragesCrossover(bt.Strategy):
         ('optimization_dict', dict()),
 
         ('use_strength', False),
-        ('strength', 0.001),
+        ('strength', 0.0005),
 
         ('one_lot_size', 100000),
 
@@ -17,11 +18,11 @@ class MovingAveragesCrossover(bt.Strategy):
 
     )
 
-    def log(self, txt, dt=None, doprint=True):
+    def log(self, txt, dt=None, doprint=False):
         ''' Logging function fot this strategy'''
         if self.params.print_log or doprint:
             dt = dt or self.datas[0].datetime.date(0)
-            print('%s, %s' % (dt.isoformat(), txt))
+            print(f'{dt.isoformat()}, {txt}')
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -61,25 +62,26 @@ class MovingAveragesCrossover(bt.Strategy):
             for key, value in self.p.optimization_dict.items():
                 setattr(self.p, key, value)
 
-        fast_sma = bt.ind.SMA(period=self.p.fast_ma_period)  # fast moving average
-        slow_sma = bt.ind.SMA(period=self.p.slow_ma_period)  # slow moving average
+        self.fast_sma = fast_sma = bt.ind.SMA(period=self.p.fast_ma_period)  # fast moving average
+        self.slow_sma = slow_sma = bt.ind.SMA(period=self.p.slow_ma_period)  # slow moving average
         self.crossover = bt.ind.CrossOver(fast_sma, slow_sma)  # crossover signal
-        self.difference = bt.ind.SMA(abs(fast_sma - slow_sma), subplot=True)
+        self.strength = bt.ind.SMA(abs(fast_sma - fast_sma(-1)), period=1, subplot=True)
 
     def next(self):
 
         size = self.p.one_lot_size
-        if self.p.use_strength:
-            size *= self.get_size_multiplier_by_strength()
 
         if not self.position:  # not in the market
             if self.crossover != 0:  # if there is signal
-
                 if self.crossover < 0:  # negate the size
                     size = -size
 
+                # only open position if signal is strong
+                if self.p.use_strength and self.strength.lines.sma[0] < self.p.strength:
+                    return
+
                 # open position with target size
-                print(self.difference.lines.sma[0])
+                self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}, diff: {self.strength.lines.sma[0]:.5f}')
                 self.order_target_size(target=size)
 
         else:  # in the market
@@ -91,8 +93,9 @@ class MovingAveragesCrossover(bt.Strategy):
                 return
 
             # if this is retrived, one wants to reverse his position
-            print(self.difference.lines.sma[0])
-            self.order_target_size(target=size)
+            # if signal is not strong enough, close instead of reverse current position
+            if self.p.use_strength and self.strength.lines.sma[0] < self.p.strength:
+                size = 0
 
-    def get_size_multiplier_by_strength(self):
-        return round(self.difference.lines.sma[0] / self.p.strength, 1)
+            self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}, diff: {self.strength.lines.sma[0]:.5f}')
+            self.order_target_size(target=size)

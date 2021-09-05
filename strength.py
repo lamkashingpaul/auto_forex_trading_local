@@ -4,10 +4,13 @@ from utils.commission import ForexCommission
 from utils.constants import *
 from utils.psql import PSQLData
 from utils.strategies import MovingAveragesCrossover
+
 import argparse
-import math
+import itertools
 import os
+import random
 import sys
+import utils.optimization as utils_opt
 
 
 def parse_args():
@@ -22,7 +25,7 @@ def parse_args():
                         help='timeframe period to be traded.')
 
     parser.add_argument('--fromdate', '-from', type=date.fromisoformat,
-                        default=(date.today() - timedelta(days=60)),
+                        default=(date.today() - timedelta(days=365)),
                         required=False, help='date starting the trade.')
 
     parser.add_argument('--todate', '-to', type=date.fromisoformat,
@@ -38,26 +41,52 @@ def parse_args():
     return parser.parse_args()
 
 
+def testcase_generator(max_period, n=0):
+    max_period += 1
+
+    if n == 0:
+        testcases = itertools.product(range(1, max_period), range(1, max_period), (0.0001, 0.0005, 0.0010))
+        for fast_ma_period, slow_ma_period, strength in testcases:
+            if fast_ma_period != slow_ma_period:
+                for use_strength in (True, False):
+                    yield dict(use_strength=use_strength,
+                               strength=strength,
+                               fast_ma_period=fast_ma_period,
+                               slow_ma_period=slow_ma_period,
+                               )
+    else:
+        for _ in range(n):
+            fast_ma_period, slow_ma_period = random.sample(range(1, max_period), 2)
+            for use_strength in (True, False):
+                for strength in (0.0001, 0.0005, 0.0010):
+                    yield dict(use_strength=use_strength,
+                               strength=strength,
+                               fast_ma_period=fast_ma_period,
+                               slow_ma_period=slow_ma_period,
+                               )
+
+
 def backtest(symbol, period, fromdate, todate, strength, optimization):
     # create a cerebro entity
     cerebro = bt.Cerebro(stdstats=False)
+
+    # Set our desired cash start
+    cash = 150000
+    cerebro.broker.setcash(cash)
+
+    cerebro.broker.addcommissioninfo(ForexCommission())
+
+    data = PSQLData(symbol=symbol, period=period, fromdate=fromdate, todate=todate)
+
+    cerebro.adddata(data)
 
     # add analyzers
     cerebro.addanalyzer(bt.analyzers.DrawDown)
     cerebro.addanalyzer(bt.analyzers.Returns)
     cerebro.addanalyzer(bt.analyzers.SharpeRatio)
+    # cerebro.addanalyzer(bt.analyzers.SharpeRatio, timeframe=bt.TimeFrame.Months, compression=1)
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer)
     cerebro.addanalyzer(bt.analyzers.Transactions, headers=True)
-
-    # Set our desired cash start
-    cash = 1000000
-    cerebro.broker.setcash(cash)
-
-    cerebro.broker.addcommissioninfo(ForexCommission(interest=0))
-
-    data = PSQLData(symbol=symbol, period=period, fromdate=fromdate, todate=todate)
-
-    cerebro.adddata(data)
 
     modpath = os.path.dirname(os.path.abspath(sys.argv[0]))
     output_filename = f'{datetime.now().strftime("%Y%m%d_%H%M%S")}_report_from_{fromdate.strftime("%Y%m%d_%H%M%S")}_to_{todate.strftime("%Y%m%d_%H%M%S")}'
@@ -74,6 +103,7 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
 
         if strength:
             strength = float(strength)
+            print(strength)
             cerebro.addstrategy(MovingAveragesCrossover,
                                 print_log=True,
                                 use_strength=True,
@@ -86,6 +116,17 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
         print(f'Starting Portfolio Value: {cash:.2f}')
         print(f'Net   Portfolio Value: {cerebro.broker.getvalue() - cash:.2f}')
         cerebro.plot(style='candlestick', barup='green', bardown='red')
+
+    else:
+        strats = []
+        num_of_samples = int(optimization)
+        optimizer = utils_opt.Optimizer(cerebro, MovingAveragesCrossover, testcase_generator, 20, num_of_samples)
+
+        runstrat = optimizer.start()
+        strats = [x[0] for x in runstrat]  # flatten the result
+
+        if strats:
+            utils_opt.save_strats(strats, output_path,)
 
 
 def main(args):
