@@ -25,6 +25,9 @@ class PSQLData(bt.feeds.DataBase):
         ('close', 4),
         ('volume', 5),
         ('openinterest', -1),
+
+        # specific params
+        ('price_type', 'BID'),
     )
 
     def start(self):
@@ -38,13 +41,15 @@ class PSQLData(bt.feeds.DataBase):
         cursor = conn.cursor()
 
         # define query
-        query = sql.SQL('SELECT {time}, {open}, {high}, {low}, {close}, {volume} '
+        query = sql.SQL('SELECT {time}, {open}, {high}, {low}, {close}, {volume}, {price_type} '
                         'FROM {table} '
                         'WHERE ({period} = %s AND '
+                        '{price_type} = %s AND '
                         '{symbol} = %s AND '
                         '{volume} > 0 AND '
                         '{time} BETWEEN %s AND %s)').format(table=sql.Identifier('candlesticks_candlestick'),
                                                             symbol=sql.Identifier('symbol'),
+                                                            price_type=sql.Identifier('price_type'),
                                                             time=sql.Identifier('time'),
                                                             open=sql.Identifier('open'),
                                                             high=sql.Identifier('high'),
@@ -54,7 +59,7 @@ class PSQLData(bt.feeds.DataBase):
                                                             period=sql.Identifier('period'),)
 
         # execute query template with input parameters
-        cursor.execute(query, (period_in_minute, self.p.symbol, self.p.fromdate, self.p.todate))
+        cursor.execute(query, (period_in_minute, self.p.price_type, self.p.symbol, self.p.fromdate, self.p.todate))
 
         self.rows = cursor.fetchall()
 
