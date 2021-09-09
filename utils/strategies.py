@@ -138,10 +138,13 @@ class RSIPositionSizing(bt.Strategy):
         ('one_lot_size', 100000),
 
         ('period', 2),
-        ('upperband', 80.0),
-        ('lowerband', 20.0),
+        ('upperband', 75.0),
+        ('lowerband', 25.0),
 
-        ('equilibrium_value', 50.0),
+        ('upper_unwind', 65.0),
+        ('lower_unwind', 35.0),
+
+        ('size_multiplier', 0.15),
 
     )
 
@@ -188,51 +191,44 @@ class RSIPositionSizing(bt.Strategy):
         if self.p.optimization_dict:
             for key, value in self.p.optimization_dict.items():
                 setattr(self.p, key, value)
-                
-        self.max_buy_position = 0
-        self.max_sell_position = 0
+
+        self.max_buy_position = float('-inf')
+        self.max_sell_position = float('inf')
 
         self.rsi = bt.ind.RSI(period=self.p.period, upperband=self.p.upperband, lowerband=self.p.lowerband, safediv=True)
-        self.buy_signal = bt.ind.CrossOver(self.rsi, self.p.lowerband, plot=False)
-        self.sell_signal = bt.ind.CrossOver(self.rsi, self.p.upperband, plot=False)
-        self.equilibrium_difference = (self.rsi - self.p.equilibrium_value)
-        size = bt.ind.SMA(self.equilibrium_difference, period=1, subplot=True)
+
+        self.buy_signal = self.rsi < self.p.lowerband
+        self.sell_signal = self.rsi > self.p.upperband
 
     def next(self):
         size = self.p.one_lot_size
 
-        # check for the signal and order using RSI normally
-        if not self.position:
+        if self.p.use_strength:
+            if not self.position.size:
+                if self.buy_signal:
+                    size_multiplier = (self.p.lowerband - self.rsi) * self.p.size_multiplier
+                    size = max(size, size * size_multiplier)
+                    self.order_target_size(target=size)
 
-            # enter logic
-            if self.p.use_strength:
-                # follow the signal to order
-                if self.equilibrium_difference < (self.p.equilibrium_value - self.p.lowerband) / 2:
-                    size *= -2 * self.equilibrium_difference / (self.p.equilibrium_value - self.p.lowerband)
-                elif self.equilibrium_difference >= (self.p.upperband - self.p.equilibrium_value) / 2:
-                    size *= -2 * self.equilibrium_difference / (self.p.upperband - self.p.equilibrium_value)
-
-                self.order_target_size(target=size)
+                elif self.sell_signal:
+                    size_multiplier = (self.rsi - self.p.upperband) * self.p.size_multiplier
+                    size = max(size, size * size_multiplier)
+                    self.order_target_size(target=-size)
 
             else:
-                if self.buy_signal > 0:
-                    self.buy(size=size)
-                elif self.sell_signal < 0:
-                    self.sell(size=size)
-
+                if self.position.size > 0 and self.rsi > self.p.lower_unwind:
+                    self.close()
+                elif self.position.size < 0 and self.p.upper_unwind > self.rsi:
+                    self.close()
         else:
-            # exit logic
-            if self.p.use_strength:
-                # follow the signal to order
-                if self.equilibrium_difference < (self.p.equilibrium_value - self.p.lowerband) / 2:
-                    size *= -2 * self.equilibrium_difference / (self.p.equilibrium_value - self.p.lowerband)
-                elif self.equilibrium_difference >= (self.p.upperband - self.p.equilibrium_value) / 2:
-                    size *= -2 * self.equilibrium_difference / (self.p.upperband - self.p.equilibrium_value)
-
-                self.order_target_size(target=size)
-
+            if not self.position.size:
+                if self.buy_signal:
+                    self.buy(size=size)
+                elif self.sell_signal:
+                    self.sell(size=size)
             else:
-                if self.position.size > 0 and self.sell_signal < 0:
-                    self.close()
-                elif self.position.size < 0 and self.buy_signal > 0:
-                    self.close()
+                if ((self.position.size > 0 and self.sell_signal) or
+                        (self.position.size < 0 and self.buy_signal)):
+                    self.order_target_size(target=-self.position.size)
+
+                pass

@@ -20,11 +20,11 @@ def parse_args():
                         help='symbols to be traded.')
 
     parser.add_argument('--period', '-p', choices=PERIODS.keys(),
-                        default='D1', required=False,
+                        default='H1', required=False,
                         help='timeframe period to be traded.')
 
     parser.add_argument('--fromdate', '-from', type=date.fromisoformat,
-                        default=(date.today() - timedelta(days=365)),
+                        default=(date.today() - timedelta(days=90)),
                         required=False, help='date starting the trade.')
 
     parser.add_argument('--todate', '-to', type=date.fromisoformat,
@@ -45,10 +45,13 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
     cerebro = bt.Cerebro(stdstats=False)
 
     # Set our desired cash start
-    cash = 200000
+    cash = 10000
     cerebro.broker.setcash(cash)
 
-    cerebro.broker.addcommissioninfo(ForexCommission())
+    leverage = 500
+    margin = cash / leverage
+
+    cerebro.broker.addcommissioninfo(ForexCommission(leverage=leverage, margin=margin))
 
     data = PSQLData(symbol=symbol, period=period, fromdate=fromdate, todate=todate)
 
