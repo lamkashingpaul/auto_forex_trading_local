@@ -20,11 +20,11 @@ def parse_args():
                         help='symbols to be traded.')
 
     parser.add_argument('--period', '-p', choices=PERIODS.keys(),
-                        default='H1', required=False,
+                        default='D1', required=False,
                         help='timeframe period to be traded.')
 
     parser.add_argument('--fromdate', '-from', type=date.fromisoformat,
-                        default=(date.today() - timedelta(days=90)),
+                        default=(date.today() - timedelta(days=365)),
                         required=False, help='date starting the trade.')
 
     parser.add_argument('--todate', '-to', type=date.fromisoformat,
@@ -45,10 +45,10 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
     cerebro = bt.Cerebro(stdstats=False)
 
     # Set our desired cash start
-    cash = 10000
+    cash = 200000
     cerebro.broker.setcash(cash)
 
-    leverage = 500
+    leverage = 1
     margin = cash / leverage
 
     cerebro.broker.addcommissioninfo(ForexCommission(leverage=leverage, margin=margin))
@@ -89,7 +89,7 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
         cerebro.run(runonce=False, stdstats=False)
         print(f'Starting Portfolio Value: {cash:.2f}')
         print(f'Net   Portfolio Value: {cerebro.broker.getvalue() - cash:.2f}')
-        cerebro.plot(style='candlestick', barup='green', bardown='red')
+        cerebro.plot(style='candlestick', barup='green', bardown='red', rowsmajor=1, rowsminor=1)
 
     else:
         strats = []
