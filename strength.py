@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from utils.commission import ForexCommission
-from utils.cases import sma_testcase_generator
+from utils.cases import rsi_testcase_generator
 from utils.constants import *
 from utils.psql import PSQLData
-from utils.strategies import MovingAveragesCrossover, RSIPositionSizing
+from utils.strategies import BuyAndHold, MovingAveragesCrossover, RSIPositionSizing
 
 import argparse
 import os
@@ -20,11 +20,11 @@ def parse_args():
                         help='symbols to be traded.')
 
     parser.add_argument('--period', '-p', choices=PERIODS.keys(),
-                        default='D1', required=False,
+                        default='H1', required=False,
                         help='timeframe period to be traded.')
 
     parser.add_argument('--fromdate', '-from', type=date.fromisoformat,
-                        default=(date.today() - timedelta(days=365)),
+                        default=(date.today() - timedelta(days=90)),
                         required=False, help='date starting the trade.')
 
     parser.add_argument('--todate', '-to', type=date.fromisoformat,
@@ -53,7 +53,14 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
 
     cerebro.broker.addcommissioninfo(ForexCommission(leverage=leverage, margin=margin))
 
-    data = PSQLData(symbol=symbol, period=period, fromdate=fromdate, todate=todate)
+    _, timeframe, compression, = PERIODS[period]
+
+    data = PSQLData(symbol=symbol,
+                    period=period,
+                    timeframe=timeframe,
+                    compression=compression,
+                    fromdate=fromdate,
+                    todate=todate)
 
     cerebro.adddata(data)
 
@@ -94,7 +101,7 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
     else:
         strats = []
         num_of_samples = int(optimization)
-        optimizer = utils_opt.Optimizer(cerebro, MovingAveragesCrossover, sma_testcase_generator, 20, num_of_samples)
+        optimizer = utils_opt.Optimizer(cerebro, RSIPositionSizing, rsi_testcase_generator, 20, num_of_samples)
 
         runstrat = optimizer.start()
         strats = [x[0] for x in runstrat]  # flatten the result

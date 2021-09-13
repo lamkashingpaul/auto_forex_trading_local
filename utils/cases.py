@@ -27,22 +27,22 @@ def sma_testcase_generator(max_period, n=0):
                                )
 
 
-def rsi_testcase_generator(max_period, n=0, equilibrium_value=50.0):
+def rsi_testcase_generator(max_period, n=0, upper_unwind=30.0, lower_unwind=70.0):
     max_period += 1
 
     if n == 0:
-        for ma_period in range(1, max_period):
-            for use_strength in (True, False):
-                yield dict(use_strength=use_strength,
-                           ma_period=ma_period,
-                           equilibrium_value=equilibrium_value,
-                           )
+        for period in range(1, max_period):
+            yield dict(use_strength=True,
+                       period=period,
+                       upper_unwind=upper_unwind,
+                       lower_unwind=lower_unwind,
+                       )
 
     else:
         for _ in range(n):
-            ma_period = random.randint(1, max_period)
-            for use_strength in (True, False):
-                yield dict(use_strength=use_strength,
-                           ma_period=ma_period,
-                           equilibrium_value=equilibrium_value,
-                           )
+            period = random.randint(1, max_period)
+            yield dict(use_strength=True,
+                       period=period,
+                       upper_unwind=upper_unwind,
+                       lower_unwind=lower_unwind,
+                       )

@@ -1,17 +1,54 @@
 import backtrader as bt
+import math
 
 
 class BuyAndHold(bt.Strategy):
 
     params = (
+        ('print_log', False),
+        ('optimization_dict', dict()),
+
         ('one_lot_size', 100000),
     )
 
-    def log(self, txt, dt=None, doprint=True):
+    def log(self, txt, dt=None, doprint=False):
         ''' Logging function fot this strategy'''
-        if self.params.printlog or doprint:
+        if self.params.print_log or doprint:
             dt = dt or self.datas[0].datetime.date(0)
-            print('%s, %s' % (dt.isoformat(), txt))
+            print(f'{dt.isoformat()}, {txt}')
+
+    def notify_order(self, order):
+        if order.status in [order.Submitted, order.Accepted]:
+            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
+            return
+
+        # Check if an order has been completed
+        # Attention: broker could reject order if not enough cash
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.log(f' BUY EXECUTED, '
+                         f'Price: {order.executed.price:>9.5f}, '
+                         f'Cost: {order.executed.value:>9.2f}, '
+                         f'Comm: {order.executed.comm:>9.2f}',
+                         dt=bt.num2date(order.executed.dt))
+            else:  # Sell
+                self.log(f'SELL EXECUTED, '
+                         f'Price: {order.executed.price:>9.5f}, '
+                         f'Cost: {order.executed.value:>9.2f}, '
+                         f'Comm: {order.executed.comm:>9.2f}',
+                         dt=bt.num2date(order.executed.dt))
+
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            self.log('Order Canceled/Margin/Rejected')
+
+    def notify_trade(self, trade):
+        if not trade.isclosed:
+            return
+
+        self.log(f'({bt.num2date(trade.dtopen)}), {trade.data._name}, '
+                 f'Gross: {trade.pnl:>9.2f}, '
+                 f'Net : {trade.pnlcomm:>9.2f}, ',
+                 dt=bt.num2date(trade.dtclose))
 
     def start(self):
         # keep the starting cash

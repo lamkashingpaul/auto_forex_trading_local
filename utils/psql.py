@@ -11,7 +11,7 @@ class PSQLData(bt.feeds.DataBase):
         ('dataname', None),
         ('name', None),
         ('symbol', 'EURUSD'),
-        ('period', 'D1'),
+        ('period', 'H1'),
         ('timeframe', bt.TimeFrame.Days),
         ('compression', 1),
         ('fromdate', datetime.min),
@@ -31,7 +31,7 @@ class PSQLData(bt.feeds.DataBase):
     )
 
     def start(self):
-        period_in_minute, self.p.timeframe, self.p.compression, = PERIODS[self.p.period]
+        self.p.period, self.p.timeframe, self.p.compression, = PERIODS[self.p.period]
 
         if not self.p.name:
             self.p.name = self.p.symbol
@@ -59,7 +59,7 @@ class PSQLData(bt.feeds.DataBase):
                                                             period=sql.Identifier('period'),)
 
         # execute query template with input parameters
-        cursor.execute(query, (period_in_minute, self.p.price_type, self.p.symbol, self.p.fromdate, self.p.todate))
+        cursor.execute(query, (self.p.period, self.p.price_type, self.p.symbol, self.p.fromdate, self.p.todate))
 
         self.rows = cursor.fetchall()
 
