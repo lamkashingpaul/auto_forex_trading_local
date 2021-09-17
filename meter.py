@@ -110,8 +110,8 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
             utils_opt.save_strats(strats, output_path,)
 
 
-def main(args):
-    backtest(args.symbol, args.period, args.fromdate, args.todate, args.strength, args.optimization)
+def main(*args):
+    pass
 
 
 if __name__ == '__main__':
