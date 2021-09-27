@@ -86,12 +86,17 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
         cerebro.addwriter(bt.WriterFile, out=output_path, rounding=5, csv=False)
 
         if strength:
-            cerebro.addstrategy(RSIPositionSizing,
+            cerebro.addstrategy(BuyAndHold,
                                 print_log=True,
-                                use_strength=True,
+                                datetime_from=datetime(2021, 1, 1),
+                                datetime_before=datetime(2021, 7, 1),
                                 )
         else:
-            cerebro.addstrategy(RSIPositionSizing, print_log=True)
+            cerebro.addstrategy(BuyAndHold,
+                                print_log=True,
+                                datetime_from=datetime(2021, 1, 1),
+                                datetime_before=datetime(2021, 7, 1),
+                                )
 
         cerebro.run(runonce=False, stdstats=False)
         print(f'Starting Portfolio Value: {cash:.2f}')
