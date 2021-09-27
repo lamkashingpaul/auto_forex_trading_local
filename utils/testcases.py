@@ -1,5 +1,22 @@
+from datetime import datetime, timedelta
 import itertools
 import random
+
+
+def slides_generator(datetime_from, datetime_before, duration, step, **kwargs):
+    while datetime_from < datetime_before:
+        delta = datetime_before - datetime_from
+        if duration > delta:
+            return dict(datetime_from=datetime_from,
+                        datetime_before=datetime_before,
+                        **kwargs,)
+
+        else:
+            yield dict(datetime_from=datetime_from,
+                       datetime_before=datetime_from + duration,
+                       **kwargs,)
+
+            datetime_from += step
 
 
 def sma_testcase_generator(max_period, n=0):
@@ -46,3 +63,11 @@ def rsi_testcase_generator(max_period, n=0, upper_unwind=30.0, lower_unwind=70.0
                        upper_unwind=upper_unwind,
                        lower_unwind=lower_unwind,
                        )
+
+
+if __name__ == '__main__':
+    for slide in slides_generator(datetime(2005, 1, 1),
+                                  datetime(2005, 2, 1),
+                                  timedelta(days=7),
+                                  timedelta(days=1),):
+        print(slide)

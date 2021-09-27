@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import backtrader as bt
 import math
 
@@ -9,6 +11,9 @@ class BuyAndHold(bt.Strategy):
         ('optimization_dict', dict()),
 
         ('one_lot_size', 100000),
+
+        ('datetime_from', datetime.min),
+        ('datetime_before', datetime.max),
     )
 
     def log(self, txt, dt=None, doprint=False):
@@ -54,15 +59,16 @@ class BuyAndHold(bt.Strategy):
         # keep the starting cash
         self.val_start = self.broker.get_cash()
 
-    def nextstart(self):
-        # buy all with the available cash
+    def next(self):
+        if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
+            return
+
+        if self.datas[0].datetime.datetime(0) >= self.p.datetime_before:
+            self.stop()
+
+        # buy and hold only at the beginning
         lots = int(self.broker.get_cash() / self.data / self.p.one_lot_size)
         self.buy(size=lots * self.p.one_lot_size)
-
-    def stop(self):
-        # calculate the actual returns
-        self.roi = (self.broker.get_value() / self.val_start) - 1.0
-        print(f'B&H ROI: {100.0 * self.roi:.2f}%')
 
 
 class MovingAveragesCrossover(bt.Strategy):
@@ -174,6 +180,9 @@ class RSIPositionSizing(bt.Strategy):
 
         ('one_lot_size', 100000),
 
+        ('datetime_from', datetime.min),
+        ('datetime_before', datetime.max),
+
         ('period', 14),
         ('upperband', 70.0),
         ('lowerband', 30.0),
@@ -244,6 +253,12 @@ class RSIPositionSizing(bt.Strategy):
         self.normal_rsi_sell_signal = bt.ind.CrossOver(self.rsi, self.p.upperband, plot=False)
 
     def next(self):
+        if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
+            return
+
+        if self.datas[0].datetime.datetime(0) >= self.p.datetime_before:
+            self.stop()
+
         if self.p.use_strength:
 
             if self.position.size == 0:

@@ -8,15 +8,15 @@ PBAR = None
 
 
 class Optimizer:
-    def __init__(self, cerebro, strategy, generator, **kwargs):
+    def __init__(self, cerebro, strategy, generator, *args):
         self.cerebro = cerebro
 
-        total_testcase = sum(1 for _ in generator(**kwargs))
+        total_testcase = sum(1 for _ in generator(*args))
 
         global PBAR
         PBAR = tqdm(smoothing=0.05, desc='Optimization', total=total_testcase)
 
-        self.cerebro.optstrategy(strategy, optimization_dict=generator(**kwargs))
+        self.cerebro.optstrategy(strategy, optimization_dict=generator(*args))
         self.cerebro.optcallback(cb=self.bt_opt_callback)
 
     def start(self):
