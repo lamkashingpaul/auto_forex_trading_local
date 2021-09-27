@@ -24,7 +24,7 @@ def parse_args():
                         help='timeframe period to be traded.')
 
     parser.add_argument('--fromdate', '-from', type=date.fromisoformat,
-                        default=(date.today() - timedelta(days=365)),
+                        default=(date.today() - timedelta(days=365 * 5)),
                         required=False, help='date starting the trade.')
 
     parser.add_argument('--todate', '-to', type=date.fromisoformat,
@@ -111,11 +111,22 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                                         datetime_from=datetime.combine(fromdate, datetime.min.time()),
                                         datetime_before=datetime.combine(todate, datetime.min.time()),
                                         duration=timedelta(days=90),
-                                        step=timedelta(days=90),
+                                        step=timedelta(days=30),
                                         period=14,
                                         upper_unwind=30.0,
                                         lower_unwind=70.0,
                                         )
+
+        '''
+        optimizer = utils_opt.Optimizer(cerebro,
+                                        BuyAndHold,
+                                        slides_generator,
+                                        datetime_from=datetime.combine(fromdate, datetime.min.time()),
+                                        datetime_before=datetime.combine(todate, datetime.min.time()),
+                                        duration=timedelta(days=90),
+                                        step=timedelta(days=30),
+                                        )
+        '''
 
         runstrat = optimizer.start()
         strats = [x[0] for x in runstrat]  # flatten the result

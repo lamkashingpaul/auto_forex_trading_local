@@ -14,8 +14,10 @@ def parse_args():
 
     parser.add_argument('--cluster', '-c', action='store_true', required=False, help='Plot clusters')
     parser.add_argument('--line', '-l', action='store_true', required=False, help='Plot lines')
+    parser.add_argument('--slidingwindow', '-w', action='store_true', required=False, help='Plot Sliding Window')
     parser.add_argument('--subplot', '-s', action='store_true', required=False, help='Subplots')
-    parser.add_argument('--filename', '-f', default=None, required=True, help='Filename of csv')
+    parser.add_argument('--subplotwindows', '-sw', action='store_true', required=False, help='Subplots for Sliding Window')
+    parser.add_argument('--filenames', '-f', nargs='+', default=[], required=True, help='Filenames of csv')
     parser.add_argument('--zero', '-z', action='store_true', required=False, help='Keep 0 rtot')
 
     return parser.parse_args()
@@ -172,15 +174,82 @@ def subplot_lines(filepath, zero_rtot):
     fig.show()
 
 
+def plot_window(filepath, zero_rtot):
+    df = pd.read_csv(filepath)
+    header = 'datetime_before'
+
+    if not zero_rtot:
+        df = df.loc[df['returns_rtot'] != 0]
+
+    x = df[header]
+    y = df['returns_rtot']
+    y2 = df['drawdown_max_drawdown']
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x, y=y, name='returns_rtot'))
+    fig.add_trace(go.Scatter(x=x, y=y2, name='drawdown_max_drawdown', yaxis='y2'))
+
+    fig.update_layout(
+        xaxis=dict(title=header, dtick='M1', tickformat='%b\n%Y'),
+        yaxis=dict(title='returns_rtot'),
+        yaxis2=dict(title='drawdown_max_drawdown', anchor='free', overlaying='y', side='left', position=0.15),
+    )
+
+    fig.update_layout(
+        title_text='',
+    )
+
+    fig.show()
+
+
+def subplot_windows(filepaths, zero_rtot):
+
+    dfs = []
+    for filepath in filepaths:
+        df = pd.read_csv(filepath)
+        if not zero_rtot:
+            df = df.loc[df['returns_rtot'] != 0]
+        dfs.append(df)
+
+    headers = [os.path.split(filepath)[-1] for filepath in filepaths]
+    plots = []
+
+    for header in headers:
+        # add returns_rtot the 3rd axis as color
+        plots.append(['datetime_before', 'returns_rtot', 'drawdown_moneydown'] + [header])
+
+    subplot_titles = [f'{plot[-1]}' for plot in plots]
+
+    fig = make_subplots(rows=len(subplot_titles), cols=1, start_cell='bottom-left',
+                        subplot_titles=subplot_titles,
+                        specs=[[{'secondary_y': True}] for _ in range(len(subplot_titles))],
+                        vertical_spacing=0.05
+                        )
+
+    for df, plot in zip(dfs, plots):
+        plot[0], plot[1], plot[2] = df[plot[0]], df[plot[1]], df[plot[2]]
+
+    for i, plot in enumerate(plots, 1):
+        fig.add_trace(go.Scatter(x=plot[0], y=plot[1], name=f'{plot[-1]}_rtot', mode='lines+markers'), row=i, col=1, secondary_y=False)
+        fig.add_trace(go.Scatter(x=plot[0], y=plot[2], name=f'{plot[-1]}_mdd', mode='lines+markers', line=dict(dash='dash')), row=i, col=1, secondary_y=True)
+
+    fig.show()
+
+
 if __name__ == '__main__':
     script_dir = os.path.dirname(__file__)
 
     args = parse_args()
-    filepath = os.path.join(script_dir, args.filename)
+
+    filepaths = [os.path.join(script_dir, filename) for filename in args.filenames]
 
     if args.cluster:
-        create_clusters_and_plot(filepath, args.zero)
+        create_clusters_and_plot(filepaths[0], args.zero)
     elif args.line:
-        plot_lines(filepath, args.zero)
+        plot_lines(filepaths[0], args.zero)
     elif args.subplot:
-        subplot_lines(filepath, args.zero)
+        subplot_lines(filepaths[0], args.zero)
+    elif args.slidingwindow:
+        plot_window(filepaths[0], args.zero)
+    elif args.subplotwindows:
+        subplot_windows(filepaths, args.zero)

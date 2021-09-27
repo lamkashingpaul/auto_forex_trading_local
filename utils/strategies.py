@@ -54,6 +54,11 @@ class BuyAndHold(bt.Strategy):
                  f'Net : {trade.pnlcomm:>9.2f}, ',
                  dt=bt.num2date(trade.dtclose))
 
+    def __init__(self):
+        if self.p.optimization_dict:
+            for key, value in self.p.optimization_dict.items():
+                setattr(self.p, key, value)
+
     def next(self):
         if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
             return
