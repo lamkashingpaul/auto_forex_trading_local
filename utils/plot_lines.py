@@ -1,9 +1,19 @@
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from jenkspy import JenksNaturalBreaks
 from plotly.subplots import make_subplots
+from utils.commissions import ForexCommission
+from utils.testcases import slides_generator
+from utils.constants import *
+from utils.psql import PSQLData
+from utils.strategies import BuyAndHold, RSIPositionSizing
 import argparse
+import backtrader as bt
 import itertools
-import os
 import pandas as pd
+import pickle
 import plotly.express as px
 import plotly.graph_objects as go
 import random
@@ -14,6 +24,7 @@ def parse_args():
 
     parser.add_argument('--cluster', '-c', action='store_true', required=False, help='Plot clusters')
     parser.add_argument('--line', '-l', action='store_true', required=False, help='Plot lines')
+    parser.add_argument('--trades', '-t', action='store_true', required=False, help='Plot Trades and Cash')
     parser.add_argument('--slidingwindow', '-w', action='store_true', required=False, help='Plot Sliding Window')
     parser.add_argument('--subplot', '-s', action='store_true', required=False, help='Subplots')
     parser.add_argument('--subplotwindows', '-sw', action='store_true', required=False, help='Subplots for Sliding Window')
@@ -236,6 +247,46 @@ def subplot_windows(filepaths, zero_rtot):
     fig.show()
 
 
+def plot_trades(filepath):
+    strats = pickle.load(open(filepath, 'rb'))
+
+    timeline = [bt.num2date(time_in_float) for time_in_float in strats.array]
+    cash_line = strats.stats.broker.array
+    trade_line_pos = strats.stats.trades.lines.pnlplus.array
+    trade_line_neg = strats.stats.trades.lines.pnlminus.array
+
+    data_dict = {
+        'time': timeline,
+        'cash': cash_line,
+        'trade_line_pos': trade_line_pos,
+        'trade_line_neg': trade_line_neg,
+    }
+
+    df = pd.DataFrame(data_dict)
+
+    x = df['time']
+    y = df['cash']
+    y2 = df['trade_line_pos']
+    y3 = df['trade_line_neg']
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x, y=y, name='cash'))
+    fig.add_trace(go.Scatter(x=x, y=y2, name='trade_line_pos', yaxis='y2', mode='markers'))
+    fig.add_trace(go.Scatter(x=x, y=y3, name='trade_line_neg', yaxis='y2', mode='markers'))
+
+    fig.update_layout(
+        xaxis=dict(title='time', domain=[0.2, 0.8]),
+        yaxis=dict(title='cash'),
+        yaxis2=dict(title='trade', anchor='free', overlaying='y', side='left', position=0.15),
+    )
+
+    fig.update_layout(
+        title_text='',
+    )
+
+    fig.show()
+
+
 if __name__ == '__main__':
     script_dir = os.path.dirname(__file__)
 
@@ -253,3 +304,5 @@ if __name__ == '__main__':
         plot_window(filepaths[0], args.zero)
     elif args.subplotwindows:
         subplot_windows(filepaths, args.zero)
+    elif args.trades:
+        plot_trades(filepaths[0])
