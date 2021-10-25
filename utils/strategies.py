@@ -192,8 +192,8 @@ class RSIPositionSizing(bt.Strategy):
         ('upperband', 70.0),
         ('lowerband', 30.0),
 
-        ('upper_unwind', 30.0),
-        ('lower_unwind', 70.0),
+        ('upper_unwind', 40.0),
+        ('lower_unwind', 60.0),
 
         ('size_multiplier', 0.05),
 
