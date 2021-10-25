@@ -14,6 +14,7 @@ def parse_args():
 
     parser.add_argument('--cluster', '-c', action='store_true', required=False, help='Plot clusters')
     parser.add_argument('--line', '-l', action='store_true', required=False, help='Plot lines')
+    parser.add_argument('--distribution', '-d', action='store_true', required=False, help='Plot distribution')
     parser.add_argument('--slidingwindow', '-w', action='store_true', required=False, help='Plot Sliding Window')
     parser.add_argument('--subplot', '-s', action='store_true', required=False, help='Subplots')
     parser.add_argument('--subplotwindows', '-sw', action='store_true', required=False, help='Subplots for Sliding Window')
@@ -236,6 +237,60 @@ def subplot_windows(filepaths, zero_rtot):
     fig.show()
 
 
+def subplot_distribution(filepaths, zero_rtot):
+    dfs = []
+    ranges = (
+        [-0.001 * i for i in reversed(range(1, 101))] + [0] +
+        [0.001 * i for i in range(1, 101)]
+    )
+
+    for filepath in filepaths:
+        df = pd.read_csv(filepath)
+        if not zero_rtot:
+            df = df.loc[df['returns_rtot'] != 0]
+        dfs.append(df)
+
+    df = dfs[0].copy()
+    df['returns_rtot'] = df['returns_rtot'] - dfs[1]['returns_rtot']
+    dfs.append(df)
+
+    for i, df in enumerate(dfs):
+        df['bins'] = pd.cut(df['returns_rtot'], ranges)
+        df['mid_point'] = df['bins'].apply(lambda x: x.mid)
+        df = df.groupby(df['mid_point'], as_index=False).count()
+        dfs[i] = df[['mid_point', 'returns_rtot']]
+
+    headers = [os.path.split(filepath)[-1] for filepath in filepaths] + ['difference']
+    plots = []
+
+    for df, header in zip(dfs, headers):
+        # add returns_rtot the 3rd axis as color
+        plots.append(['mid_point', 'returns_rtot'] + [header])
+
+    subplot_titles = [f'{plot[-1]}' for plot in plots]
+    fig = make_subplots(rows=len(subplot_titles), cols=1, start_cell='bottom-left',
+                        subplot_titles=subplot_titles,
+                        vertical_spacing=0.1
+                        )
+
+    for df, plot in zip(dfs, plots):
+        plot[0], plot[1] = df[plot[0]], df[plot[1]]
+
+    for i, plot in enumerate(plots, 1):
+        fig.add_trace(go.Bar(x=plot[0], y=plot[1],
+                             name=f'{plot[-1]}_rtot',
+                             #  xaxis=dict(tickmode='linear', dtick=0.005),
+                             #  mode='lines+markers',
+                             ), row=i, col=1)
+
+    for ax in fig['layout']:
+        if ax[:5] == 'xaxis':
+            fig['layout'][ax]['tickmode'] = 'linear'
+            fig['layout'][ax]['dtick'] = 0.005
+
+    fig.show()
+
+
 if __name__ == '__main__':
     script_dir = os.path.dirname(__file__)
 
@@ -253,3 +308,5 @@ if __name__ == '__main__':
         plot_window(filepaths[0], args.zero)
     elif args.subplotwindows:
         subplot_windows(filepaths, args.zero)
+    elif args.distribution:
+        subplot_distribution(filepaths, args.zero)

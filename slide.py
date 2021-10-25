@@ -86,16 +86,18 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
         cerebro.addwriter(bt.WriterFile, out=output_path, rounding=5, csv=False)
 
         if strength:
-            cerebro.addstrategy(BuyAndHold,
+            cerebro.addstrategy(RSIPositionSizing,
                                 print_log=True,
-                                datetime_from=datetime(2021, 1, 1),
-                                datetime_before=datetime(2021, 7, 1),
+                                period=14,
+                                upper_unwind=30.0,
+                                lower_unwind=70.0,
                                 )
         else:
-            cerebro.addstrategy(BuyAndHold,
+            cerebro.addstrategy(RSIPositionSizing,
                                 print_log=True,
-                                datetime_from=datetime(2021, 1, 1),
-                                datetime_before=datetime(2021, 7, 1),
+                                period=14,
+                                upper_unwind=30.0,
+                                lower_unwind=70.0,
                                 )
 
         cerebro.run(runonce=False, stdstats=False)
@@ -111,7 +113,7 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                                         datetime_from=datetime.combine(fromdate, datetime.min.time()),
                                         datetime_before=datetime.combine(todate, datetime.min.time()),
                                         duration=timedelta(days=90),
-                                        step=timedelta(days=30),
+                                        step=timedelta(days=1),
                                         period=14,
                                         upper_unwind=30.0,
                                         lower_unwind=70.0,
