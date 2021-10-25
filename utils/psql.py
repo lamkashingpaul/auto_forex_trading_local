@@ -47,16 +47,17 @@ class PSQLData(bt.feeds.DataBase):
                         '{price_type} = %s AND '
                         '{symbol} = %s AND '
                         '{volume} > 0 AND '
-                        '{time} BETWEEN %s AND %s)').format(table=sql.Identifier('candlesticks_candlestick'),
-                                                            symbol=sql.Identifier('symbol'),
-                                                            price_type=sql.Identifier('price_type'),
-                                                            time=sql.Identifier('time'),
-                                                            open=sql.Identifier('open'),
-                                                            high=sql.Identifier('high'),
-                                                            low=sql.Identifier('low'),
-                                                            close=sql.Identifier('close'),
-                                                            volume=sql.Identifier('volume'),
-                                                            period=sql.Identifier('period'),)
+                        '{time} BETWEEN %s AND %s)'
+                        'ORDER BY {time}').format(table=sql.Identifier('candlesticks_candlestick'),
+                                                  symbol=sql.Identifier('symbol'),
+                                                  price_type=sql.Identifier('price_type'),
+                                                  time=sql.Identifier('time'),
+                                                  open=sql.Identifier('open'),
+                                                  high=sql.Identifier('high'),
+                                                  low=sql.Identifier('low'),
+                                                  close=sql.Identifier('close'),
+                                                  volume=sql.Identifier('volume'),
+                                                  period=sql.Identifier('period'),)
 
         # execute query template with input parameters
         cursor.execute(query, (self.p.period, self.p.price_type, self.p.symbol, self.p.fromdate, self.p.todate))
