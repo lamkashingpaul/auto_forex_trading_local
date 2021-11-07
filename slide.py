@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from utils.commissions import ForexCommission
-from utils.testcases import slides_generator
 from utils.constants import *
+from utils.datafeeds import DownloadedCSVData
 from utils.psql import PSQLData
 from utils.strategies import BuyAndHold, RSIPositionSizing
+from utils.testcases import slides_generator
 
 import argparse
 import os
@@ -62,6 +63,8 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                     fromdate=fromdate,
                     todate=todate)
 
+    data = DownloadedCSVData(dataname='./data/EURUSD_from_20160101_to_20201231_H1_BID.csv')
+
     cerebro.adddata(data)
 
     # add analyzers
@@ -112,8 +115,8 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                                         slides_generator,
                                         datetime_from=datetime.combine(fromdate, datetime.min.time()),
                                         datetime_before=datetime.combine(todate, datetime.min.time()),
-                                        duration=timedelta(days=90),
-                                        step=timedelta(days=1),
+                                        durations=[timedelta(days=30 * (i + 1)) for i in range(3)],
+                                        steps=[timedelta(days=1)],
                                         period=14,
                                         upper_unwind=30.0,
                                         lower_unwind=70.0,
@@ -125,8 +128,8 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                                         slides_generator,
                                         datetime_from=datetime.combine(fromdate, datetime.min.time()),
                                         datetime_before=datetime.combine(todate, datetime.min.time()),
-                                        duration=timedelta(days=90),
-                                        step=timedelta(days=30),
+                                        durations=[timedelta(days=30 * (i + 1)) for i in range(3)],
+                                        steps=[timedelta(days=1)],
                                         )
         '''
 
