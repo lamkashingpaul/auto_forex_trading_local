@@ -1,7 +1,9 @@
 from jenkspy import JenksNaturalBreaks
 from plotly.subplots import make_subplots
+from scipy.interpolate import griddata
 import argparse
 import itertools
+import numpy as np
 import os
 import pandas as pd
 import plotly.express as px
@@ -17,6 +19,7 @@ def parse_args():
     parser.add_argument('--distribution', '-d', action='store_true', required=False, help='Plot distribution')
     parser.add_argument('--slidingwindow', '-w', action='store_true', required=False, help='Plot Sliding Window')
     parser.add_argument('--subplot', '-s', action='store_true', required=False, help='Subplots')
+    parser.add_argument('--surface', '-sf', action='store_true', required=False, help='Surface')
     parser.add_argument('--subplotwindows', '-sw', action='store_true', required=False, help='Subplots for Sliding Window')
     parser.add_argument('--filenames', '-f', nargs='+', default=[], required=True, help='Filenames of csv')
     parser.add_argument('--zero', '-z', action='store_true', required=False, help='Keep 0 rtot')
@@ -84,7 +87,7 @@ def create_clusters_and_plot(filepath, zero_rtot):
                                  xaxis=dict(zeroline=True, title=f'x: {headers[0]}', range=[df[headers[0]].min(), df[headers[0]].max()], autorange='reversed'),
                                  yaxis=dict(zeroline=True, title=f'y: {headers[1]}', range=[df[headers[1]].min(), df[headers[1]].max()], autorange='reversed'),
                                  zaxis=dict(zeroline=True, title=f'z: {headers[2]}', range=[df[headers[2]].min(), df[headers[2]].max()],),),
-                      coloraxis_colorbar=dict(yanchor="top", y=1, x=0, ticks='outside', ticksuffix=''),
+                      coloraxis_colorbar=dict(yanchor='top', y=1, x=0, ticks='outside', ticksuffix=''),
                       )
 
     fig.show()
@@ -160,7 +163,7 @@ def subplot_lines(filepath, zero_rtot):
         cmin = 0
         cmax = df[color_header].max()
         colorscale = [(0.00, 'rgba(255, 255, 255, 1)'), (1.00, 'rgba(0, 255, 0, 1)')]
-        colorbar = dict(title='rtot', yanchor="top", y=1, x=-0.1, ticks='outside', ticksuffix='')
+        colorbar = dict(title='rtot', yanchor='top', y=1, x=-0.1, ticks='outside', ticksuffix='')
 
         return dict(cmin=cmin,
                     cmax=cmax,
@@ -291,6 +294,97 @@ def subplot_distribution(filepaths, zero_rtot):
     fig.show()
 
 
+def plot_surface(filepaths, zero_rtot):
+    dfs = []
+    ranges = (
+        [-0.005 * i for i in reversed(range(1, 101))] + [0] +
+        [0.005 * i for i in range(1, 101)]
+    )
+
+    for filepath in filepaths:
+        df = pd.read_csv(filepath)
+        if not zero_rtot:
+            df = df.loc[df['returns_rtot'] != 0]
+        df['datetime_before'] = pd.to_datetime(df['datetime_before'], format='%Y-%m-%d %H:%M:%S')
+        df['datetime_from'] = pd.to_datetime(df['datetime_from'], format='%Y-%m-%d %H:%M:%S')
+        df['window_size'] = (df['datetime_before'] - df['datetime_from']).dt.days
+        dfs.append(df)
+
+    df = dfs[0].copy()
+    df['returns_rtot'] = df['returns_rtot'] - dfs[1]['returns_rtot']
+    dfs.append(df)
+
+    for i, df in enumerate(dfs):
+        df['bins'] = pd.cut(df['returns_rtot'], ranges)
+        df['mid_point'] = df['bins'].apply(lambda x: x.mid)
+        df = df.groupby(['mid_point', 'window_size'], as_index=False).size()
+        dfs[i] = df[['mid_point', 'window_size', 'size']]
+        dfs[i] = dfs[i].loc[dfs[i]['size'] > 0]
+
+    headers = [os.path.split(filepath)[-1] for filepath in filepaths] + ['difference']
+
+    for i, header in enumerate(headers):
+        # add returns_rtot the 3rd axis as color
+        headers[i] = ['mid_point', 'window_size', 'size'] + [header]
+
+    subplot_titles = [f'{header[-1]}' for header in headers]
+    fig = make_subplots(rows=1, cols=1, start_cell='bottom-left',
+                        specs=[[{'type': 'scene'} for _ in range(1)]],
+                        subplot_titles=subplot_titles,
+                        vertical_spacing=0.1
+                        )
+
+    # for df, plot in zip(dfs, plots):
+    #     plot[0], plot[1], plot[2] = df[plot[0]], df[plot[1]], df[plot[2]]
+
+    for i, (df, header, colorscale) in enumerate(zip(dfs, headers, ('blues', 'reds', 'purp')), 1):
+        fig.add_trace(go.Scatter3d(x=df[header[0]], y=df[header[1]], z=df[header[2]],
+                                   name=header[-1],
+                                   mode='markers',
+                                   visible='legendonly',
+                                   ), row=1, col=1)
+
+        xi = np.linspace(-0.075, 0.075, num=100)
+        yi = np.linspace(0, 100, num=100)
+        x_grid, y_grid = np.meshgrid(xi, yi)
+        z_grid = griddata((df[header[0]], df[header[1]]), df[header[2]],
+                          (x_grid, y_grid), method='cubic')
+
+        fig.add_trace(go.Surface(x=x_grid,
+                                 y=y_grid,
+                                 z=z_grid,
+                                 name=f'{header[-1]}_surface',
+                                 cmin=0,
+                                 cmax=400,
+                                 colorbar=dict(title='Freq', yanchor="top", y=1, x=-0.1 + i * 0.05, ticks='outside', ticksuffix=''),
+                                 colorscale=colorscale,
+                                 showlegend=True,
+                                 opacity=.75,
+                                 showscale=True,
+                                 hoverinfo='none',
+                                 ), row=1, col=1)
+
+    for i in range(1, len(subplot_titles) + 1):
+        fig.update_scenes(xaxis_title_text='Percentage of Return',
+                          yaxis_title_text='Window Size',
+                          zaxis_title_text='Freqency',
+                          xaxis_showspikes=False,
+                          yaxis_showspikes=False,
+                          zaxis_showspikes=False,
+                          xaxis_range=[-0.1, 0.1],
+                          yaxis_range=[0, 100],
+                          zaxis_range=[0, 400],
+                          xaxis_autorange='reversed',
+                          yaxis_autorange='reversed',
+                          yaxis_dtick=10,
+                          zaxis_dtick=10,
+                          row=1, col=1)
+
+    fig.update_layout(coloraxis_colorbar=dict(yanchor='top', y=1, x=0, ticks='outside', ticksuffix=''))
+
+    fig.show()
+
+
 if __name__ == '__main__':
     script_dir = os.path.dirname(__file__)
 
@@ -310,3 +404,5 @@ if __name__ == '__main__':
         subplot_windows(filepaths, args.zero)
     elif args.distribution:
         subplot_distribution(filepaths, args.zero)
+    elif args.surface:
+        plot_surface(filepaths, args.zero)
