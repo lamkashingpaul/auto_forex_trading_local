@@ -20,6 +20,7 @@ def parse_args():
     parser.add_argument('--slidingwindow', '-w', action='store_true', required=False, help='Plot Sliding Window')
     parser.add_argument('--subplot', '-s', action='store_true', required=False, help='Subplots')
     parser.add_argument('--surface', '-sf', action='store_true', required=False, help='Surface')
+    parser.add_argument('--average', '-a', action='store_true', required=False, help='Average')
     parser.add_argument('--subplotwindows', '-sw', action='store_true', required=False, help='Subplots for Sliding Window')
     parser.add_argument('--filenames', '-f', nargs='+', default=[], required=True, help='Filenames of csv')
     parser.add_argument('--zero', '-z', action='store_true', required=False, help='Keep 0 rtot')
@@ -385,6 +386,17 @@ def plot_surface(filepaths, zero_rtot):
     fig.show()
 
 
+def plot_average(filepaths, zero_rtot):
+    dfs = []
+    for filepath in filepaths:
+        df = pd.read_csv(filepath)
+        if not zero_rtot:
+            df = df.loc[df['returns_rtot'] != 0]
+
+        print(f'{filepath}: {df["returns_rtot"].mean()}')
+        dfs.append(df)
+
+
 if __name__ == '__main__':
     script_dir = os.path.dirname(__file__)
 
@@ -406,3 +418,5 @@ if __name__ == '__main__':
         subplot_distribution(filepaths, args.zero)
     elif args.surface:
         plot_surface(filepaths, args.zero)
+    elif args.average:
+        plot_average(filepaths, args.zero)
