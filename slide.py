@@ -4,13 +4,15 @@ from utils.commissions import ForexCommission
 from utils.constants import *
 from utils.datafeeds import DownloadedCSVData
 from utils.psql import PSQLData
-from utils.strategies import BuyAndHold, RSIPositionSizing
+from utils.strategies import MovingAveragesCrossover, RSIPositionSizing
 from utils.testcases import slides_generator
+from utils.plotter import BacktraderPlottly
 
 import argparse
 import os
 import sys
 import utils.optimizations as utils_opt
+import plotly.io
 
 
 def parse_args():
@@ -63,7 +65,7 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                     fromdate=fromdate,
                     todate=todate)
 
-    data = DownloadedCSVData(dataname='./data/EURUSD_from_20160101_to_20201231_H1_BID.csv')
+    data = DownloadedCSVData(dataname='./data/EURUSD_from_20201130_to_20211129_D1_BID.csv')
 
     cerebro.adddata(data)
 
@@ -96,17 +98,26 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                                 lower_unwind=70.0,
                                 )
         else:
+            '''
             cerebro.addstrategy(RSIPositionSizing,
                                 print_log=True,
                                 period=14,
                                 upper_unwind=30.0,
                                 lower_unwind=70.0,
                                 )
+            '''
+            cerebro.addstrategy(MovingAveragesCrossover,
+                                fast_ma_period=3,
+                                slow_ma_period=20,
+                                )
 
         cerebro.run(runonce=False, stdstats=False)
         print(f'Starting Portfolio Value: {cash:.2f}')
         print(f'Net   Portfolio Value: {cerebro.broker.getvalue() - cash:.2f}')
-        cerebro.plot(style='candlestick', barup='green', bardown='red', rowsmajor=1, rowsminor=1)
+        figs = cerebro.plot(BacktraderPlottly())
+        figs = [x for fig in figs for x in fig]  # flatten output
+        for i, fig in enumerate(figs):
+            plotly.io.write_html(fig, f'fig{i}')
 
     else:
         strats = []
