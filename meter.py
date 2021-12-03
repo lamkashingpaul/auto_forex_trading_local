@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from utils.commissions import ForexCommission
-from utils.testcases import rsi_testcase_generator
+from utils.testcases import sma_testcase_generator, rsi_testcase_generator
 from utils.constants import *
 from utils.psql import PSQLData
 from utils.strategies import BuyAndHold, MovingAveragesCrossover, RSIPositionSizing
@@ -24,7 +24,7 @@ def parse_args():
                         help='timeframe period to be traded.')
 
     parser.add_argument('--fromdate', '-from', type=date.fromisoformat,
-                        default=(date.today() - timedelta(days=90)),
+                        default=(date.today() - timedelta(days=365)),
                         required=False, help='date starting the trade.')
 
     parser.add_argument('--todate', '-to', type=date.fromisoformat,
@@ -91,7 +91,7 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                                 use_strength=True,
                                 )
         else:
-            cerebro.addstrategy(RSIPositionSizing, print_log=True)
+            cerebro.addstrategy(BuyAndHold, print_log=True)
 
         cerebro.run(runonce=False, stdstats=False)
         print(f'Starting Portfolio Value: {cash:.2f}')
@@ -100,8 +100,8 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
 
     else:
         strats = []
-        num_of_samples = int(optimization)
-        optimizer = utils_opt.Optimizer(cerebro, RSIPositionSizing, rsi_testcase_generator, 20, num_of_samples)
+        num_of_samples = 0
+        optimizer = utils_opt.Optimizer(cerebro, RSIPositionSizing, rsi_testcase_generator, max_period=30, n=num_of_samples)
 
         runstrat = optimizer.start()
         strats = [x[0] for x in runstrat]  # flatten the result
@@ -110,8 +110,8 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
             utils_opt.save_strats(strats, output_path,)
 
 
-def main(*args):
-    pass
+def main(args):
+    backtest(args.symbol, args.period, args.fromdate, args.todate, args.strength, args.optimization)
 
 
 if __name__ == '__main__':

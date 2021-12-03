@@ -27,7 +27,7 @@ def parse_args():
                         help='timeframe period to be traded.')
 
     parser.add_argument('--fromdate', '-from', type=date.fromisoformat,
-                        default=(date.today() - timedelta(days=365 * 5)),
+                        default=(date.today() - timedelta(days=365)),
                         required=False, help='date starting the trade.')
 
     parser.add_argument('--todate', '-to', type=date.fromisoformat,
@@ -65,7 +65,7 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
                     fromdate=fromdate,
                     todate=todate)
 
-    data = DownloadedCSVData(dataname='./data/EURUSD_from_20201130_to_20211129_D1_BID.csv')
+    # data = DownloadedCSVData(dataname='./data/EURUSD_from_20201130_to_20211129_D1_BID.csv')
 
     cerebro.adddata(data)
 
@@ -121,18 +121,30 @@ def backtest(symbol, period, fromdate, todate, strength, optimization):
 
     else:
         strats = []
+        '''
+        optimizer = utils_opt.Optimizer(cerebro,
+                                        MovingAveragesCrossover,
+                                        slides_generator,
+                                        datetime_from=datetime.combine(fromdate, datetime.min.time()),
+                                        datetime_before=datetime.combine(todate, datetime.min.time()),
+                                        # durations=[timedelta(days=30 * (i + 1)) for i in range(3)],
+                                        durations=[timedelta(days=90)],
+                                        steps=[timedelta(days=1)],
+                                        )
+        '''
+
         optimizer = utils_opt.Optimizer(cerebro,
                                         RSIPositionSizing,
                                         slides_generator,
                                         datetime_from=datetime.combine(fromdate, datetime.min.time()),
                                         datetime_before=datetime.combine(todate, datetime.min.time()),
-                                        durations=[timedelta(days=30 * (i + 1)) for i in range(3)],
+                                        # durations=[timedelta(days=30 * (i + 1)) for i in range(3)],
+                                        durations=[timedelta(days=90)],
                                         steps=[timedelta(days=1)],
                                         period=14,
                                         upper_unwind=30.0,
                                         lower_unwind=70.0,
                                         )
-
         '''
         optimizer = utils_opt.Optimizer(cerebro,
                                         BuyAndHold,

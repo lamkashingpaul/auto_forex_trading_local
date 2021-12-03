@@ -85,10 +85,13 @@ class MovingAveragesCrossover(bt.Strategy):
         ('use_strength', False),
         ('strength', 0.0005),
 
+        ('datetime_from', datetime.min),
+        ('datetime_before', datetime.max),
+
         ('one_lot_size', 100000),
 
-        ('fast_ma_period', 50),
-        ('slow_ma_period', 200),
+        ('fast_ma_period', 7),
+        ('slow_ma_period', 20),
 
     )
 
@@ -142,37 +145,46 @@ class MovingAveragesCrossover(bt.Strategy):
         self.strength = bt.ind.SMA(abs(fast_sma - fast_sma(-1)), period=1, subplot=True)
 
     def next(self):
+        if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
+            return
 
-        size = self.p.one_lot_size
+        elif self.datas[0].datetime.datetime(0) >= self.p.datetime_before:
+            if self.position:
+                self.close()
+            else:
+                self.env.runstop()
+                return
+        else:
+            size = self.p.one_lot_size
 
-        if not self.position:  # not in the market
-            if self.crossover != 0:  # if there is signal
-                if self.crossover < 0:  # negate the size
+            if not self.position:  # not in the market
+                if self.crossover != 0:  # if there is signal
+                    if self.crossover < 0:  # negate the size
+                        size = -size
+
+                    # only open position if signal is strong
+                    if self.p.use_strength and self.strength.lines.sma[0] < self.p.strength:
+                        return
+
+                    # open position with target size
+                    self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}, diff: {self.strength.lines.sma[0]:.5f}')
+                    self.order_target_size(target=size)
+
+            else:  # in the market
+                if self.position.size > 0 and self.crossover < 0:  # having buy position and sell signal
                     size = -size
-
-                # only open position if signal is strong
-                if self.p.use_strength and self.strength.lines.sma[0] < self.p.strength:
+                elif self.position.size < 0 and self.crossover > 0:  # having sell position and buy signal
+                    pass
+                else:
                     return
 
-                # open position with target size
+                # if this is retrived, one wants to reverse his position
+                # if signal is not strong enough, close instead of reverse current position
+                if self.p.use_strength and self.strength.lines.sma[0] < self.p.strength:
+                    size = 0
+
                 self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}, diff: {self.strength.lines.sma[0]:.5f}')
                 self.order_target_size(target=size)
-
-        else:  # in the market
-            if self.position.size > 0 and self.crossover < 0:  # having buy position and sell signal
-                size = -size
-            elif self.position.size < 0 and self.crossover > 0:  # having sell position and buy signal
-                pass
-            else:
-                return
-
-            # if this is retrived, one wants to reverse his position
-            # if signal is not strong enough, close instead of reverse current position
-            if self.p.use_strength and self.strength.lines.sma[0] < self.p.strength:
-                size = 0
-
-            self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}, diff: {self.strength.lines.sma[0]:.5f}')
-            self.order_target_size(target=size)
 
 
 class RSIPositionSizing(bt.Strategy):
