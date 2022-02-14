@@ -1,5 +1,8 @@
 from datetime import datetime
-
+import math
+from utils.constants import *
+from utils.indicators import TwentyeightPairsIndicator
+from utils.observers import BuySellArrows
 import backtrader as bt
 
 
@@ -325,3 +328,243 @@ class RSIPositionSizing(bt.Strategy):
                     if ((self.position.size > 0 and self.normal_rsi_sell_signal < 0) or
                             (self.position.size < 0 and self.normal_rsi_buy_signal > 0)):
                         self.order_target_size(target=-self.position.size)
+
+
+class ACSTrailing(bt.Strategy):
+    '''
+    Note that the strategy is based on TwentyeightPairsIndicator
+    Datafeeds of bid prices of 28 symbols are first added before ask prices
+    There are total 56 datafeeds, and first 28 datafeeds, which are bid prices,
+        are used for evaluation of indicator values
+    '''
+
+    # Default parameters for plotting and trading strategy
+    params = (
+        ('printlog', True),
+        ('plot_ask_acs', False),
+
+        ('fast_ma_period', 3),
+        ('slow_ma_period', 20),
+
+        ('one_mini_lot_size', 10000),
+        ('stoptype', bt.Order.StopTrail),
+        ('trailamount', 0.010),
+        ('trailpercent', 0.0),
+
+        ('AUDCAD', 0.650), ('AUDCHF', 0.550), ('AUDJPY', 0.700), ('AUDNZD', 0.440),
+        ('AUDUSD', 0.650), ('CADCHF', 1.000), ('CADJPY', 1.000), ('CHFJPY', 1.000),
+        ('EURAUD', 0.850), ('EURCAD', 0.800), ('EURCHF', 0.850), ('EURGBP', 0.600),
+        ('EURJPY', 0.650), ('EURNZD', 0.800), ('EURUSD', 0.800), ('GBPAUD', 0.250),
+        ('GBPCAD', 0.250), ('GBPCHF', 0.200), ('GBPJPY', 0.500), ('GBPNZD', 0.050),
+        ('GBPUSD', 0.500), ('NZDCAD', 0.700), ('NZDCHF', 0.700), ('NZDJPY', 0.700),
+        ('NZDUSD', 0.700), ('USDCAD', 1.000), ('USDCHF', 1.000), ('USDJPY', 1.000),
+    )
+
+    def log(self, txt, dt=None, doprint=False):
+        if self.params.printlog or doprint:
+            dt = dt or self.datas[0].datetime.datetime()
+            print(f'{dt.isoformat()}, {txt}')
+
+    def notify_order(self, order):
+        if order.status in [order.Submitted, order.Accepted]:
+            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
+            return
+
+        # Check if an order has been completed
+        # Attention: broker could reject order if not enough cash
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.log(f'{order.info.symbol} ({order.info.type}), '
+                         f' BUY EXECUTED, '
+                         f'Price: {order.executed.price:>9.5f}, '
+                         f'Cost: {order.executed.value:>9.2f}, '
+                         f'Comm: {order.executed.comm:>9.2f}',
+                         dt=bt.num2date(order.executed.dt))
+            else:  # Sell
+                self.log(f'{order.info.symbol} ({order.info.type}), '
+                         f'SELL EXECUTED, '
+                         f'Price: {order.executed.price:>9.5f}, '
+                         f'Cost: {order.executed.value:>9.2f}, '
+                         f'Comm: {order.executed.comm:>9.2f}',
+                         dt=bt.num2date(order.executed.dt))
+
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            self.log('Order Canceled/Margin/Rejected')
+
+    def notify_trade(self, trade):
+        if not trade.isclosed:
+            return
+
+        self.log(f'({bt.num2date(trade.dtopen)}), {trade.data._name}, '
+                 f'Gross: {trade.pnl:>9.2f}, '
+                 f'Net : {trade.pnlcomm:>9.2f}, ',
+                 dt=bt.num2date(trade.dtclose))
+
+    def __init__(self):
+        # Add ACS28 indicator
+        self.twentyeight_pairs_bid = TwentyeightPairsIndicator(*self.datas[:28],
+                                                               fast_ma_period=self.p.fast_ma_period,
+                                                               slow_ma_period=self.p.slow_ma_period,
+                                                               AUDCAD=self.p.AUDCAD, AUDCHF=self.p.AUDCHF, AUDJPY=self.p.AUDJPY, AUDNZD=self.p.AUDNZD,
+                                                               AUDUSD=self.p.AUDUSD, CADCHF=self.p.CADCHF, CADJPY=self.p.CADJPY, CHFJPY=self.p.CHFJPY,
+                                                               EURAUD=self.p.EURAUD, EURCAD=self.p.EURCAD, EURCHF=self.p.EURCHF, EURGBP=self.p.EURGBP,
+                                                               EURJPY=self.p.EURJPY, EURNZD=self.p.EURNZD, EURUSD=self.p.EURUSD, GBPAUD=self.p.GBPAUD,
+                                                               GBPCAD=self.p.GBPCAD, GBPCHF=self.p.GBPCHF, GBPJPY=self.p.GBPJPY, GBPNZD=self.p.GBPNZD,
+                                                               GBPUSD=self.p.GBPUSD, NZDCAD=self.p.NZDCAD, NZDCHF=self.p.NZDCHF, NZDJPY=self.p.NZDJPY,
+                                                               NZDUSD=self.p.NZDUSD, USDCAD=self.p.USDCAD, USDCHF=self.p.USDCHF, USDJPY=self.p.USDJPY,)
+
+        self.twentyeight_pairs_ask = TwentyeightPairsIndicator(*self.datas[-28:],
+                                                               plot=self.p.plot_ask_acs,
+                                                               fast_ma_period=self.p.fast_ma_period,
+                                                               slow_ma_period=self.p.slow_ma_period,
+                                                               AUDCAD=self.p.AUDCAD, AUDCHF=self.p.AUDCHF, AUDJPY=self.p.AUDJPY, AUDNZD=self.p.AUDNZD,
+                                                               AUDUSD=self.p.AUDUSD, CADCHF=self.p.CADCHF, CADJPY=self.p.CADJPY, CHFJPY=self.p.CHFJPY,
+                                                               EURAUD=self.p.EURAUD, EURCAD=self.p.EURCAD, EURCHF=self.p.EURCHF, EURGBP=self.p.EURGBP,
+                                                               EURJPY=self.p.EURJPY, EURNZD=self.p.EURNZD, EURUSD=self.p.EURUSD, GBPAUD=self.p.GBPAUD,
+                                                               GBPCAD=self.p.GBPCAD, GBPCHF=self.p.GBPCHF, GBPJPY=self.p.GBPJPY, GBPNZD=self.p.GBPNZD,
+                                                               GBPUSD=self.p.GBPUSD, NZDCAD=self.p.NZDCAD, NZDCHF=self.p.NZDCHF, NZDJPY=self.p.NZDJPY,
+                                                               NZDUSD=self.p.NZDUSD, USDCAD=self.p.USDCAD, USDCHF=self.p.USDCHF, USDJPY=self.p.USDJPY,)
+
+        self.twentyeight_pairs_bid.plotinfo.plotname = 'ACS28_BID'
+        self.twentyeight_pairs_ask.plotinfo.plotname = 'ACS28_ASK'
+
+        # Set up buysell arrows
+        for data in self.datas[:28]:
+            bt.obs.BuySell(data, barplot=True, bardist=0.00001)
+        for data in self.datas[-28:]:
+            BuySellArrows(data, barplot=True, bardist=0.00001)
+
+        # Dictionary to hold limit orders for Close
+        self.o = dict()
+
+        # Dictionary to hold last open position orders
+        self.last_open_position = dict()
+
+        # Dictionary to hold previous open positioning time
+        self.last_open_position_time = dict()
+
+    def next(self):
+        buy_symbol, sell_symbol = self.get_buy_sell_symbol()
+
+        # Iterate first half of data
+        for d in self.datas[:len(self.datas) // 2]:
+            pair_name = d._name[0:6]
+
+            dt = d.datetime.datetime()
+            pos = self.getposition(d).size
+
+            size = self.p.one_mini_lot_size
+            trailamount = self.p.trailamount
+
+            # Modifications for JPY markets
+            if 'JPY' in d._name:
+                size /= 100
+                trailamount *= 100
+
+            # If no open position
+            if not pos:
+                # Open a buy position if buy symbol is matched
+                if pair_name == buy_symbol:
+                    # Prevent double ordering
+                    if self.last_open_position_time.get(d, None) != dt:
+                        # Open a buy position
+                        self.log(f'{pair_name} Open Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
+
+                        self.last_open_position[d] = self.buy(data=self.dnames[pair_name + '_ASK'],  # use ask price data for buy
+                                                              size=size,)
+
+                        self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
+
+                        self.last_open_position_time[d] = dt
+
+                        # Clear old limit orders for Close
+                        self.o[d] = None
+
+                # Or open a sell position if sell symbol is matched
+                elif pair_name == sell_symbol:
+                    # Prevent double ordering
+                    if self.last_open_position_time.get(d, None) != dt:
+                        self.log(f'{pair_name} Open Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
+
+                        # Open a sell position
+                        self.last_open_position[d] = self.sell(data=self.dnames[pair_name + '_BID'],  # use bid price data for sell
+                                                               size=size,)
+
+                        self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
+
+                        self.last_open_position_time[d] = dt
+
+                        # Clear old limit orders for Close
+                        self.o[d] = None
+
+            # Else if there is open position
+            elif pos and self.o.get(d, None) is None:
+                # If there is existing buy position, sell if there is acs < 0
+                if self.last_open_position.get(d, None) and self.last_open_position[d].isbuy() and pair_name == sell_symbol:
+                    self.log(f'{pair_name} Close Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
+
+                    # Create a trailing stop limit sell order
+                    self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'],
+                                          size=size,)
+
+                    self.o[d].addinfo(symbol=pair_name, type='Close')
+
+                # Else if the existing position is sell, buy if acs > 0
+                elif self.last_open_position.get(d, None) and self.last_open_position[d].issell() and pair_name == buy_symbol:
+                    self.log(f'{pair_name} Close Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
+
+                    # Create a trailing stop limit buy order
+                    self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'],
+                                         size=size,)
+
+                    self.o[d].addinfo(symbol=pair_name, type='Close')
+
+    def stop(self):
+        # if self.p.trailamount != 0:
+        #     self.log(f'(Trailing pips: {self.p.trailamount:.5f}) End Value: {self.broker.getvalue()}', doprint=True)
+        # if self.p.trailpercent != 0:
+        #     self.log(f'(Trailing pips: {self.p.trailamount * 100:.2f}%) End Value: {self.broker.getvalue()}', doprint=True)
+        self.log(','.join(f'{getattr(self.p, symbol):.3f}' for symbol in SYMBOLS), doprint=True)
+        self.log(f'End Value: {self.broker.getvalue()}', doprint=True)
+
+    def get_buy_sell_symbol(self):
+
+        # Sorted dicionary for finding maximum or minimum ACS values
+        ask_acs = {}
+        bid_acs = {}
+
+        # Ask ACS28
+        for symbol in SYMBOLS:
+            # Find ACS value
+            acs_value = getattr(self.twentyeight_pairs_ask.lines, symbol)[0]
+
+            # Hash value into dict if it is available
+            if not math.isnan(acs_value) and acs_value != 0.0:
+                ask_acs[symbol] = getattr(self.twentyeight_pairs_ask.lines, symbol)[0]
+            else:
+                # Terminate if not all acs value
+                return '', ''
+
+        # Sort ask ACS28 values
+        ask_acs = dict(sorted(ask_acs.items(), key=lambda item: item[1], reverse=True))
+
+        # Bid ACS28
+        for symbol in SYMBOLS:
+            # Find ACS value
+            acs_value = getattr(self.twentyeight_pairs_bid.lines, symbol)[0]
+
+            # Hash value into dict if it is available
+            if not math.isnan(acs_value) and acs_value != 0.0:
+                bid_acs[symbol] = getattr(self.twentyeight_pairs_bid.lines, symbol)[0]
+            else:
+                # Terminate if not all acs value
+                return '', ''
+
+        # Sort bid ACS28 values
+        bid_acs = dict(sorted(bid_acs.items(), key=lambda item: item[1], reverse=True))
+
+        # Return buy and sell symobls for ordering
+        buy_symbol = list(ask_acs.keys())[0]
+        sell_symbol = list(bid_acs.keys())[-1]
+
+        return buy_symbol, sell_symbol

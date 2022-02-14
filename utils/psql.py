@@ -96,7 +96,7 @@ class PSQLData(bt.feeds.DataBase):
     def _connect_db(self):
         conn = psycopg2.connect(database='fyp',
                                 # info below is not needed while using unix socket
-                                host='192.168.1.72',
+                                host='192.168.1.71',
                                 port='5432',
                                 user=os.environ.get('PG_USER', ''),
                                 password=os.environ.get('PG_PASSWORD', '')

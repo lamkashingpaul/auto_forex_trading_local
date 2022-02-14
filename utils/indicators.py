@@ -19,3 +19,115 @@ class VolumeWeightedAveragePrice(bt.Indicator):
         self.lines[0] = cumtypprice / cumvol
 
         super(VolumeWeightedAveragePrice, self).__init__()
+
+
+class TwentyeightPairsIndicator(bt.Indicator):
+
+    # Declare indicator lines
+    lines = (
+        'AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'JPY', 'NZD', 'USD',
+        'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDNZD', 'AUDUSD', 'CADCHF',
+        'CADJPY', 'CHFJPY', 'EURAUD', 'EURCAD', 'EURCHF', 'EURGBP',
+        'EURJPY', 'EURNZD', 'EURUSD', 'GBPAUD', 'GBPCAD', 'GBPCHF',
+        'GBPJPY', 'GBPNZD', 'GBPUSD', 'NZDCAD', 'NZDCHF', 'NZDJPY',
+        'NZDUSD', 'USDCAD', 'USDCHF', 'USDJPY',
+    )
+
+    # Default indicator parameters
+    params = (
+        ('fast_ma_period', 3),
+        ('slow_ma_period', 20),
+
+        ('AUDCAD', 0.650), ('AUDCHF', 0.550), ('AUDJPY', 0.700), ('AUDNZD', 0.440),
+        ('AUDUSD', 0.650), ('CADCHF', 1.000), ('CADJPY', 1.000), ('CHFJPY', 1.000),
+        ('EURAUD', 0.850), ('EURCAD', 0.800), ('EURCHF', 0.850), ('EURGBP', 0.600),
+        ('EURJPY', 0.650), ('EURNZD', 0.800), ('EURUSD', 0.800), ('GBPAUD', 0.250),
+        ('GBPCAD', 0.250), ('GBPCHF', 0.200), ('GBPJPY', 0.500), ('GBPNZD', 0.050),
+        ('GBPUSD', 0.500), ('NZDCAD', 0.700), ('NZDCHF', 0.700), ('NZDJPY', 0.700),
+        ('NZDUSD', 0.700), ('USDCAD', 1.000), ('USDCHF', 1.000), ('USDJPY', 1.000),
+    )
+
+    # Default indicator plotinfo parameters
+    plotinfo = (
+        ('plot', True),
+        ('subplot', True),
+    )
+
+    # Indicator lines specific plotting styles
+    plotlines = dict(
+        AUD=dict(_plotskip=True),
+        CAD=dict(_plotskip=True),
+        CHF=dict(_plotskip=True),
+        EUR=dict(_plotskip=True),
+        GBP=dict(_plotskip=True),
+        JPY=dict(_plotskip=True),
+        NZD=dict(_plotskip=True),
+        USD=dict(_plotskip=True),
+        AUDCAD=dict(_plotskip=False),
+        AUDCHF=dict(_plotskip=False),
+        AUDJPY=dict(_plotskip=False),
+        AUDNZD=dict(_plotskip=False),
+        AUDUSD=dict(_plotskip=False),
+        CADCHF=dict(_plotskip=False),
+        CADJPY=dict(_plotskip=False),
+        CHFJPY=dict(_plotskip=False),
+        EURAUD=dict(_plotskip=False),
+        EURCAD=dict(_plotskip=False),
+        EURCHF=dict(_plotskip=False),
+        EURGBP=dict(_plotskip=False),
+        EURJPY=dict(_plotskip=False),
+        EURNZD=dict(_plotskip=False),
+        EURUSD=dict(_plotskip=False),
+        GBPAUD=dict(_plotskip=False),
+        GBPCAD=dict(_plotskip=False),
+        GBPCHF=dict(_plotskip=False),
+        GBPJPY=dict(_plotskip=False),
+        GBPNZD=dict(_plotskip=False),
+        GBPUSD=dict(_plotskip=False),
+        NZDCAD=dict(_plotskip=False),
+        NZDCHF=dict(_plotskip=False),
+        NZDJPY=dict(_plotskip=False),
+        NZDUSD=dict(_plotskip=False),
+        USDCAD=dict(_plotskip=False),
+        USDCHF=dict(_plotskip=False),
+        USDJPY=dict(_plotskip=False),
+    )
+
+    def __init__(self):
+        # Lookup values
+        self.total_number_of_currencies = 8
+        self.total_number_of_pairs = 28
+
+        # Two EMAs used for ACS evaluations
+        self.fast_ema = {}
+        self.slow_ema = {}
+
+        for i in range(self.total_number_of_pairs):
+            pair_name = self.datas[i]._name[0:6]
+            self.fast_ema[pair_name] = bt.indicators.EMA(self.datas[i].lines.close, period=self.p.fast_ma_period).ema()
+            self.slow_ema[pair_name] = bt.indicators.EMA(self.datas[i].lines.close, period=self.p.slow_ma_period).ema()
+
+    def next(self):
+        # Initialize each line value for today
+        for line in self.lines:
+            line[0] = 0
+
+        # Calculate values for each currency line
+        for symbol in self.datas:
+            pair_name = symbol._name[0:6]
+            base_currency = symbol._name[0:3]
+            quot_currency = symbol._name[3:6]
+            if(self.slow_ema[pair_name][0] != 0):
+                ma_percentage = (self.fast_ema[pair_name][0] - self.slow_ema[pair_name][0]) / self.slow_ema[pair_name][0] * getattr(self.p, pair_name)
+            else:
+                ma_percentage = 0
+
+            getattr(self.lines, base_currency)[0] += ma_percentage
+            getattr(self.lines, quot_currency)[0] -= ma_percentage
+
+        # Calculate 28 symbols values
+        for symbol in self.datas:
+            pair_name = symbol._name[0:6]
+            base_currency = symbol._name[0:3]
+            quot_currency = symbol._name[3:6]
+            getattr(self.lines, pair_name)[0] = getattr(self.lines, base_currency)[0] - getattr(self.lines, quot_currency)[0]

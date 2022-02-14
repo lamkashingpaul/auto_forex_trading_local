@@ -19,3 +19,28 @@ class DownloadedCSVData(bt.feeds.GenericCSVData):
         ('volume', 5),
         ('openinterest', -1),
     )
+
+
+class TickDataSuiteCSVData(bt.feeds.GenericCSVData):
+    # Default parameters settings
+    params = (
+        ('nullvalue', 0.0),
+        ('dtformat', '%Y.%m.%d'),
+        ('tmformat', '%H:%M:%S'),
+        ('timeframe', bt.TimeFrame.Minutes),
+        ('compression', 60),
+
+        ('datetime', 0),
+        ('time', 1),
+        ('open', 2),
+        ('high', 3),
+        ('low', 4),
+        ('close', 5),
+        ('volume', -1),
+        ('openinterest', -1),
+    )
+
+    # Default plotinfo for data
+    plotinfo = (
+        ('plot', True),
+    )
