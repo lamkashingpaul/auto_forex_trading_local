@@ -34,8 +34,7 @@ class EightCurrenciesIndicator(bt.Indicator):
 
     # Default indicator parameters
     params = (
-        ('fast_ma_period', 3),
-        ('slow_ma_period', 20),
+        ('period', 14),
         ('AUDCAD', 1.000), ('AUDCHF', 1.000), ('AUDJPY', 1.000), ('AUDNZD', 1.000),
         ('AUDUSD', 1.000), ('CADCHF', 1.000), ('CADJPY', 1.000), ('CHFJPY', 1.000),
         ('EURAUD', 1.000), ('EURCAD', 1.000), ('EURCHF', 1.000), ('EURGBP', 1.000),
@@ -96,13 +95,11 @@ class EightCurrenciesIndicator(bt.Indicator):
         self.total_number_of_pairs = 28
 
         # Two EMAs used for ACS evaluations
-        self.fast_ema = {}
-        self.slow_ema = {}
+        self.rsi = {}
 
         for i in range(self.total_number_of_pairs):
             pair_name = self.datas[i]._name[0:6]
-            self.fast_ema[pair_name] = bt.indicators.EMA(self.datas[i].lines.close, period=self.p.fast_ma_period).ema()
-            self.slow_ema[pair_name] = bt.indicators.EMA(self.datas[i].lines.close, period=self.p.slow_ma_period).ema()
+            self.rsi[pair_name] = bt.indicators.RSI(self.datas[i].lines.close, period=self.p.period).rsi()
 
     def next(self):
         # Initialize each line value for today
@@ -114,13 +111,9 @@ class EightCurrenciesIndicator(bt.Indicator):
             pair_name = symbol._name[0:6]
             base_currency = symbol._name[0:3]
             quot_currency = symbol._name[3:6]
-            if(self.slow_ema[pair_name][0] != 0):
-                ma_percentage = (self.fast_ema[pair_name][0] - self.slow_ema[pair_name][0]) / self.slow_ema[pair_name][0] * getattr(self.p, pair_name)
-            else:
-                ma_percentage = 0
 
-            getattr(self.lines, base_currency)[0] += ma_percentage
-            getattr(self.lines, quot_currency)[0] -= ma_percentage
+            getattr(self.lines, base_currency)[0] += self.rsi[pair_name] * getattr(self.p, pair_name) / (self.total_number_of_currencies - 1)
+            getattr(self.lines, quot_currency)[0] += (100 - self.rsi[pair_name]) * getattr(self.p, pair_name) / (self.total_number_of_currencies - 1)
 
 
 class TwentyeightPairsIndicator(bt.Indicator):

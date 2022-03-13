@@ -346,13 +346,12 @@ class CurrencyStrength(bt.Strategy):
         ('printlog', True),
         ('plot_ask_cs', False),
 
-        ('fast_ma_period', 3),
-        ('slow_ma_period', 20),
+        ('period', 14),
 
         ('one_mini_lot_size', 10000),
         ('stoptype', bt.Order.StopTrail),
-        ('trailamount', 0.0050),
-        ('trailpercent', 0.0),
+        ('trailamount', 0.00050),
+        ('trailpercent', 0.00008),
 
         ('AUDCAD', 1.000), ('AUDCHF', 1.000), ('AUDJPY', 1.000), ('AUDNZD', 1.000),
         ('AUDUSD', 1.000), ('CADCHF', 1.000), ('CADJPY', 1.000), ('CHFJPY', 1.000),
@@ -406,8 +405,7 @@ class CurrencyStrength(bt.Strategy):
     def __init__(self):
         # Add ACS28 indicator
         self.eight_currencies_bid = EightCurrenciesIndicator(*self.datas[:28],
-                                                             fast_ma_period=self.p.fast_ma_period,
-                                                             slow_ma_period=self.p.slow_ma_period,
+                                                             period=self.p.period,
                                                              AUDCAD=self.p.AUDCAD, AUDCHF=self.p.AUDCHF, AUDJPY=self.p.AUDJPY, AUDNZD=self.p.AUDNZD,
                                                              AUDUSD=self.p.AUDUSD, CADCHF=self.p.CADCHF, CADJPY=self.p.CADJPY, CHFJPY=self.p.CHFJPY,
                                                              EURAUD=self.p.EURAUD, EURCAD=self.p.EURCAD, EURCHF=self.p.EURCHF, EURGBP=self.p.EURGBP,
@@ -419,8 +417,7 @@ class CurrencyStrength(bt.Strategy):
 
         self.eight_currencies_ask = EightCurrenciesIndicator(*self.datas[-28:],
                                                              plot=self.p.plot_ask_cs,
-                                                             fast_ma_period=self.p.fast_ma_period,
-                                                             slow_ma_period=self.p.slow_ma_period,
+                                                             period=self.p.period,
                                                              AUDCAD=self.p.AUDCAD, AUDCHF=self.p.AUDCHF, AUDJPY=self.p.AUDJPY, AUDNZD=self.p.AUDNZD,
                                                              AUDUSD=self.p.AUDUSD, CADCHF=self.p.CADCHF, CADJPY=self.p.CADJPY, CHFJPY=self.p.CHFJPY,
                                                              EURAUD=self.p.EURAUD, EURCAD=self.p.EURCAD, EURCHF=self.p.EURCHF, EURGBP=self.p.EURGBP,
@@ -460,11 +457,13 @@ class CurrencyStrength(bt.Strategy):
 
             size = self.p.one_mini_lot_size
             trailamount = self.p.trailamount
+            trailpercent = self.p.trailpercent
 
             # Modifications for JPY markets
             if 'JPY' in d._name:
                 size /= 100
                 trailamount *= 100
+                trailpercent *= 100
 
             # If no open position
             if not pos:
@@ -504,26 +503,54 @@ class CurrencyStrength(bt.Strategy):
 
             # Else if there is open position
             elif pos and self.o.get(d, None) is None:
+                '''
+                # If there is existing buy position, set trailing
+                if self.last_open_position.get(d, None) and self.last_open_position[d].isbuy():
+                    self.log(f'{pair_name} Close Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
+
+                    # Create a sell order
+                    self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'], size=size,
+                                          exectype=self.p.stoptype,
+                                          trailamount=None,
+                                          trailpercent=trailpercent,
+                                          )
+                    self.o[d].addinfo(symbol=pair_name, type='Close')
+
+                # Else if the existing position is sell, buy if acs > 0
+                elif self.last_open_position.get(d, None) and self.last_open_position[d].issell():
+                    self.log(f'{pair_name} Close Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
+
+                    # Create a buy order
+                    self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'], size=size,
+                                         exectype=self.p.stoptype,
+                                         trailamount=None,
+                                         trailpercent=trailpercent,
+                                         )
+                    self.o[d].addinfo(symbol=pair_name, type='Close')
+                '''
                 base_currency, quote_currency = pair_name[:3], pair_name[3:]
                 before = getattr(self.eight_currencies_bid.lines, base_currency)[-1] - getattr(self.eight_currencies_bid.lines, quote_currency)[-1]
                 after = getattr(self.eight_currencies_bid.lines, base_currency)[0] - getattr(self.eight_currencies_bid.lines, quote_currency)[0]
-
                 # currency crossover
                 if (before <= 0.0 and after > 0.0) or (before >= 0.0 and after < 0.0):
-                    # If there is existing buy position, sell if there is acs < 0
+                    # If there is existing buy position, sell if there is crossover
                     if self.last_open_position.get(d, None) and self.last_open_position[d].isbuy():
                         self.log(f'{pair_name} Close Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
 
                         # Create a sell order
-                        self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'], size=size)
+                        self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'], size=size,
+                                              exectype=self.p.stoptype,
+                                              trailpercent=trailpercent,)
                         self.o[d].addinfo(symbol=pair_name, type='Close')
 
-                    # Else if the existing position is sell, buy if acs > 0
+                    # Else if the existing position is sell, buy if there is crossover
                     elif self.last_open_position.get(d, None) and self.last_open_position[d].issell():
                         self.log(f'{pair_name} Close Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
 
                         # Create a buy order
-                        self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'], size=size)
+                        self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'], size=size,
+                                             exectype=self.p.stoptype,
+                                             trailpercent=trailpercent,)
                         self.o[d].addinfo(symbol=pair_name, type='Close')
 
     def stop(self):
@@ -531,17 +558,15 @@ class CurrencyStrength(bt.Strategy):
         self.log(f'End Value: {self.broker.getvalue()}', doprint=True)
 
     def get_buy_sell_symbol(self):
-        rankings = [SortedDict({getattr(self.eight_currencies_bid.lines, currency)[i]: currency for currency in CURRENCIES}) for i in range(0, -5, -1)]
-        max_currencies = [rankings[i].peekitem(-1)[1] for i in range(0, -3, -1)]
-        min_currencies = [rankings[i].peekitem(0)[1] for i in range(0, -3, -1)]
+        rankings = SortedDict({getattr(self.eight_currencies_bid.lines, currency)[0]: currency for currency in CURRENCIES})
+        max_rsi, max_currencies = rankings.peekitem(-1)
+        min_rsi, min_currencies = rankings.peekitem(0)
 
         buy_symbol, sell_symbol = '', ''
-        if all(max_currencies[0] == max_currencies[i] and min_currencies[0] == min_currencies[i] for i in range(3)):
-            diff = (rankings[0].peekitem(-1)[0] - rankings[0].peekitem(0)[0]) * 100
-            if diff >= 3:
-                buy_symbol, sell_symbol = min_currencies[0] + max_currencies[0], ''
-                if buy_symbol not in SYMBOLS:
-                    buy_symbol, sell_symbol = sell_symbol, buy_symbol
+        if min_rsi <= 35 and max_rsi >= 65:
+            buy_symbol, sell_symbol = min_currencies + max_currencies, ''
+            if buy_symbol not in SYMBOLS:
+                buy_symbol, sell_symbol = sell_symbol, buy_symbol
 
         return buy_symbol, sell_symbol
 

@@ -110,14 +110,13 @@ def backtest(period, fromdate, todate):
     cerebro = bt.Cerebro(stdstats=False)
 
     # Set our desired cash start
-    cash = 200000 * 28
+    cash = 100000
     cerebro.broker.setcash(cash)
 
     # Add strategy
     cerebro.addstrategy(CurrencyStrength,
-                        fast_ma_period=3,
-                        slow_ma_period=7,
-                        trailamount=0.0010)
+                        period=14,
+                        )
 
     # Add commission scheme
     leverage = 1
