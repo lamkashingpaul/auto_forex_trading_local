@@ -36,7 +36,7 @@ class TickDataSuiteCSVData(bt.feeds.GenericCSVData):
         ('high', 3),
         ('low', 4),
         ('close', 5),
-        ('volume', -1),
+        ('volume', 4),
         ('openinterest', -1),
     )
 

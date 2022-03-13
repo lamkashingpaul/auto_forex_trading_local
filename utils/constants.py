@@ -17,6 +17,10 @@ PERIODS = {
     'MN': (43200, bt.TimeFrame.Months, 1),
 }
 
+CURRENCIES = [
+    'AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'JPY', 'NZD', 'USD',
+]
+
 SYMBOLS = [
     'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDNZD', 'AUDUSD', 'CADCHF',
     'CADJPY', 'CHFJPY', 'EURAUD', 'EURCAD', 'EURCHF', 'EURGBP',

@@ -21,6 +21,108 @@ class VolumeWeightedAveragePrice(bt.Indicator):
         super(VolumeWeightedAveragePrice, self).__init__()
 
 
+class EightCurrenciesIndicator(bt.Indicator):
+    # Declare indicator lines
+    lines = (
+        'AUD', 'CAD', 'CHF', 'EUR', 'GBP', 'JPY', 'NZD', 'USD',
+        'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDNZD', 'AUDUSD', 'CADCHF',
+        'CADJPY', 'CHFJPY', 'EURAUD', 'EURCAD', 'EURCHF', 'EURGBP',
+        'EURJPY', 'EURNZD', 'EURUSD', 'GBPAUD', 'GBPCAD', 'GBPCHF',
+        'GBPJPY', 'GBPNZD', 'GBPUSD', 'NZDCAD', 'NZDCHF', 'NZDJPY',
+        'NZDUSD', 'USDCAD', 'USDCHF', 'USDJPY',
+    )
+
+    # Default indicator parameters
+    params = (
+        ('fast_ma_period', 3),
+        ('slow_ma_period', 20),
+        ('AUDCAD', 1.000), ('AUDCHF', 1.000), ('AUDJPY', 1.000), ('AUDNZD', 1.000),
+        ('AUDUSD', 1.000), ('CADCHF', 1.000), ('CADJPY', 1.000), ('CHFJPY', 1.000),
+        ('EURAUD', 1.000), ('EURCAD', 1.000), ('EURCHF', 1.000), ('EURGBP', 1.000),
+        ('EURJPY', 1.000), ('EURNZD', 1.000), ('EURUSD', 1.000), ('GBPAUD', 1.000),
+        ('GBPCAD', 1.000), ('GBPCHF', 1.000), ('GBPJPY', 1.000), ('GBPNZD', 1.000),
+        ('GBPUSD', 1.000), ('NZDCAD', 1.000), ('NZDCHF', 1.000), ('NZDJPY', 1.000),
+        ('NZDUSD', 1.000), ('USDCAD', 1.000), ('USDCHF', 1.000), ('USDJPY', 1.000),
+    )
+
+    # Default indicator plotinfo parameters
+    plotinfo = (
+        ('plot', True),
+        ('subplot', True),
+    )
+    # Indicator lines specific plotting styles
+    plotlines = dict(
+        AUD=dict(_plotskip=False),
+        CAD=dict(_plotskip=False),
+        CHF=dict(_plotskip=False),
+        EUR=dict(_plotskip=False),
+        GBP=dict(_plotskip=False),
+        JPY=dict(_plotskip=False),
+        NZD=dict(_plotskip=False),
+        USD=dict(_plotskip=False),
+        AUDCAD=dict(_plotskip=True),
+        AUDCHF=dict(_plotskip=True),
+        AUDJPY=dict(_plotskip=True),
+        AUDNZD=dict(_plotskip=True),
+        AUDUSD=dict(_plotskip=True),
+        CADCHF=dict(_plotskip=True),
+        CADJPY=dict(_plotskip=True),
+        CHFJPY=dict(_plotskip=True),
+        EURAUD=dict(_plotskip=True),
+        EURCAD=dict(_plotskip=True),
+        EURCHF=dict(_plotskip=True),
+        EURGBP=dict(_plotskip=True),
+        EURJPY=dict(_plotskip=True),
+        EURNZD=dict(_plotskip=True),
+        EURUSD=dict(_plotskip=True),
+        GBPAUD=dict(_plotskip=True),
+        GBPCAD=dict(_plotskip=True),
+        GBPCHF=dict(_plotskip=True),
+        GBPJPY=dict(_plotskip=True),
+        GBPNZD=dict(_plotskip=True),
+        GBPUSD=dict(_plotskip=True),
+        NZDCAD=dict(_plotskip=True),
+        NZDCHF=dict(_plotskip=True),
+        NZDJPY=dict(_plotskip=True),
+        NZDUSD=dict(_plotskip=True),
+        USDCAD=dict(_plotskip=True),
+        USDCHF=dict(_plotskip=True),
+        USDJPY=dict(_plotskip=True),
+    )
+
+    def __init__(self):
+        # Lookup values
+        self.total_number_of_currencies = 8
+        self.total_number_of_pairs = 28
+
+        # Two EMAs used for ACS evaluations
+        self.fast_ema = {}
+        self.slow_ema = {}
+
+        for i in range(self.total_number_of_pairs):
+            pair_name = self.datas[i]._name[0:6]
+            self.fast_ema[pair_name] = bt.indicators.EMA(self.datas[i].lines.close, period=self.p.fast_ma_period).ema()
+            self.slow_ema[pair_name] = bt.indicators.EMA(self.datas[i].lines.close, period=self.p.slow_ma_period).ema()
+
+    def next(self):
+        # Initialize each line value for today
+        for line in self.lines:
+            line[0] = 0
+
+        # Calculate values for each currency line
+        for symbol in self.datas:
+            pair_name = symbol._name[0:6]
+            base_currency = symbol._name[0:3]
+            quot_currency = symbol._name[3:6]
+            if(self.slow_ema[pair_name][0] != 0):
+                ma_percentage = (self.fast_ema[pair_name][0] - self.slow_ema[pair_name][0]) / self.slow_ema[pair_name][0] * getattr(self.p, pair_name)
+            else:
+                ma_percentage = 0
+
+            getattr(self.lines, base_currency)[0] += ma_percentage
+            getattr(self.lines, quot_currency)[0] -= ma_percentage
+
+
 class TwentyeightPairsIndicator(bt.Indicator):
 
     # Declare indicator lines

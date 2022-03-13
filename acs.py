@@ -1,16 +1,22 @@
 from datetime import datetime, timedelta, date
 from pathlib import Path
 
+from backtrader_plotly.plotter import BacktraderPlotly
+from backtrader_plotly.scheme import PlotScheme
+
 from utils.analyzers import MultiSymbolsTradeAnalyzer, MultiSymbolsTransactions
 from utils.commissions import ForexCommission
 from utils.constants import *
 from utils.datafeeds import TickDataSuiteCSVData
 from utils.psql import PSQLData
-from utils.strategies import ACSTrailing
+from utils.strategies import CurrencyStrength
+from utils.plotter import BacktraderPlotly
+from utils.schemes import PlotScheme
 
 import argparse
 import backtrader as bt
 import os
+import plotly.io
 import sys
 
 
@@ -55,9 +61,8 @@ def get_datas_from_psql(period, fromdate, todate):
 
     return datas
 
+
 # Collect data from folder
-
-
 def collect_data_from_folder(data_directory, fromdate, todate):
     datas = {}
 
@@ -74,7 +79,7 @@ def collect_data_from_folder(data_directory, fromdate, todate):
         data = TickDataSuiteCSVData(dataname=file_path,
                                     fromdate=fromdate,
                                     todate=todate,)
-
+        data.plotinfo.plot = False
         datas[symbol] = data
 
     # Add ask prices data
@@ -88,8 +93,14 @@ def collect_data_from_folder(data_directory, fromdate, todate):
         # data compensation
         data.compensate(datas[symbol[:6] + '_BID'])
         data.plotinfo.plotmaster = datas[symbol[:6] + '_BID']
+        data.plotinfo.plot = False
 
         datas[symbol] = data
+
+    datas['AUDCAD_BID'].plotinfo.plot = True
+    datas['AUDCAD_ASK'].plotinfo.plot = True
+    datas['AUDUSD_BID'].plotinfo.plot = True
+    datas['AUDUSD_ASK'].plotinfo.plot = True
 
     return datas
 
@@ -103,7 +114,7 @@ def backtest(period, fromdate, todate):
     cerebro.broker.setcash(cash)
 
     # Add strategy
-    cerebro.addstrategy(ACSTrailing,
+    cerebro.addstrategy(CurrencyStrength,
                         fast_ma_period=3,
                         slow_ma_period=7,
                         trailamount=0.0010)
@@ -142,7 +153,7 @@ def backtest(period, fromdate, todate):
     # Add data
     # datas = get_datas_from_psql(period, fromdate, todate)
     data_directory = os.path.join(modpath, './data/h1_datas')
-    datas = collect_data_from_folder(data_directory, fromdate, todate)
+    datas = collect_data_from_folder(data_directory, datetime.min, datetime.max)
     for name, data in datas.items():
         cerebro.adddata(data, name=name)
 
@@ -151,6 +162,11 @@ def backtest(period, fromdate, todate):
 
     # Run over everything
     runstrats = cerebro.run(runonce=False, stdstats=False)
+
+    figs = cerebro.plot(BacktraderPlotly(show=True, scheme=PlotScheme()))
+    figs = [x for fig in figs for x in fig]  # flatten output
+    for fig in figs:
+        plotly.io.to_html(fig, full_html=False)  # open html in the browser
 
     # Print out the final result
     print(f'Final Portfolio Value: {cerebro.broker.getvalue():.2f}')
