@@ -28,3 +28,8 @@ SYMBOLS = [
     'GBPJPY', 'GBPNZD', 'GBPUSD', 'NZDCAD', 'NZDCHF', 'NZDJPY',
     'NZDUSD', 'USDCAD', 'USDCHF', 'USDJPY',
 ]
+
+PRICE_TYPES = [
+    'ASK',
+    'BID',
+]

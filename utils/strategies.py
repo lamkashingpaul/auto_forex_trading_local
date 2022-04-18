@@ -1,5 +1,5 @@
 from utils.constants import *
-from utils.indicators import EightCurrenciesIndicator, TwentyeightPairsIndicator
+from utils.indicators import *
 from utils.observers import BuySellArrows
 
 from datetime import datetime
@@ -145,10 +145,13 @@ class MovingAveragesCrossover(bt.Strategy):
             for key, value in self.p.optimization_dict.items():
                 setattr(self.p, key, value)
 
+        if 'JPY' in self.datas[0]._name:
+            self.p.one_lot_size /= 100
+
         self.fast_sma = fast_sma = bt.ind.SMA(period=self.p.fast_ma_period)  # fast moving average
         self.slow_sma = slow_sma = bt.ind.SMA(period=self.p.slow_ma_period)  # slow moving average
         self.crossover = bt.ind.CrossOver(fast_sma, slow_sma)  # crossover signal
-        self.strength = bt.ind.SMA(abs(fast_sma - fast_sma(-1)), period=1, subplot=True)
+        # self.strength = bt.ind.SMA(abs(fast_sma - fast_sma(-1)), period=1, subplot=True)
 
     def next(self):
         if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
@@ -446,112 +449,97 @@ class CurrencyStrength(bt.Strategy):
         self.last_open_position_time = dict()
 
     def next(self):
-        buy_symbol, sell_symbol = self.get_buy_sell_symbol()
+        if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
+            return
 
-        # Iterate first half of data
-        for d in self.datas[:len(self.datas) // 2]:
-            pair_name = d._name[0:6]
+        elif self.datas[0].datetime.datetime(0) >= self.p.datetime_before:
+            if self.position:
+                self.close()
+            else:
+                self.env.runstop()
+                return
+        else:
+            buy_symbol, sell_symbol = self.get_buy_sell_symbol()
 
-            dt = d.datetime.datetime()
-            pos = self.getposition(d).size
+            # Iterate first half of data
+            for d in self.datas[:len(self.datas) // 2]:
+                pair_name = d._name[0:6]
 
-            size = self.p.one_mini_lot_size
-            trailamount = self.p.trailamount
-            trailpercent = self.p.trailpercent
+                dt = d.datetime.datetime()
+                pos = self.getposition(d).size
 
-            # Modifications for JPY markets
-            if 'JPY' in d._name:
-                size /= 100
-                trailamount *= 100
-                trailpercent *= 100
+                size = self.p.one_mini_lot_size
+                trailamount = self.p.trailamount
+                trailpercent = self.p.trailpercent
 
-            # If no open position
-            if not pos:
-                # Open a buy position if buy symbol is matched
-                if pair_name == buy_symbol:
-                    # Prevent double ordering
-                    if self.last_open_position_time.get(d, None) != dt:
-                        # Open a buy position
-                        self.log(f'{pair_name} Open Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
+                # Modifications for JPY markets
+                if 'JPY' in d._name:
+                    size /= 100
+                    trailamount *= 100
+                    trailpercent *= 100
 
-                        self.last_open_position[d] = self.buy(data=self.dnames[pair_name + '_ASK'],  # use ask price data for buy
-                                                              size=size,)
+                # If no open position
+                if not pos:
+                    # Open a buy position if buy symbol is matched
+                    if pair_name == buy_symbol:
+                        # Prevent double ordering
+                        if self.last_open_position_time.get(d, None) != dt:
+                            # Open a buy position
+                            self.log(f'{pair_name} Open Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
 
-                        self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
+                            self.last_open_position[d] = self.buy(data=self.dnames[pair_name + '_ASK'],  # use ask price data for buy
+                                                                size=size,)
 
-                        self.last_open_position_time[d] = dt
+                            self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
 
-                        # Clear old limit orders for Close
-                        self.o[d] = None
+                            self.last_open_position_time[d] = dt
 
-                # Or open a sell position if sell symbol is matched
-                elif pair_name == sell_symbol:
-                    # Prevent double ordering
-                    if self.last_open_position_time.get(d, None) != dt:
-                        self.log(f'{pair_name} Open Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
+                            # Clear old limit orders for Close
+                            self.o[d] = None
 
-                        # Open a sell position
-                        self.last_open_position[d] = self.sell(data=self.dnames[pair_name + '_BID'],  # use bid price data for sell
-                                                               size=size,)
+                    # Or open a sell position if sell symbol is matched
+                    elif pair_name == sell_symbol:
+                        # Prevent double ordering
+                        if self.last_open_position_time.get(d, None) != dt:
+                            self.log(f'{pair_name} Open Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
 
-                        self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
+                            # Open a sell position
+                            self.last_open_position[d] = self.sell(data=self.dnames[pair_name + '_BID'],  # use bid price data for sell
+                                                                size=size,)
 
-                        self.last_open_position_time[d] = dt
+                            self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
 
-                        # Clear old limit orders for Close
-                        self.o[d] = None
+                            self.last_open_position_time[d] = dt
 
-            # Else if there is open position
-            elif pos and self.o.get(d, None) is None:
-                '''
-                # If there is existing buy position, set trailing
-                if self.last_open_position.get(d, None) and self.last_open_position[d].isbuy():
-                    self.log(f'{pair_name} Close Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
+                            # Clear old limit orders for Close
+                            self.o[d] = None
 
-                    # Create a sell order
-                    self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'], size=size,
-                                          exectype=self.p.stoptype,
-                                          trailamount=None,
-                                          trailpercent=trailpercent,
-                                          )
-                    self.o[d].addinfo(symbol=pair_name, type='Close')
+                # Else if there is open position
+                elif pos and self.o.get(d, None) is None:
+                    base_currency, quote_currency = pair_name[:3], pair_name[3:]
+                    before = getattr(self.eight_currencies_bid.lines, base_currency)[-1] - getattr(self.eight_currencies_bid.lines, quote_currency)[-1]
+                    after = getattr(self.eight_currencies_bid.lines, base_currency)[0] - getattr(self.eight_currencies_bid.lines, quote_currency)[0]
+                    # currency crossover
+                    if (before <= 0.0 and after > 0.0) or (before >= 0.0 and after < 0.0):
+                        # If there is existing buy position, sell if there is crossover
+                        if self.last_open_position.get(d, None) and self.last_open_position[d].isbuy():
+                            self.log(f'{pair_name} Close Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
 
-                # Else if the existing position is sell, buy if acs > 0
-                elif self.last_open_position.get(d, None) and self.last_open_position[d].issell():
-                    self.log(f'{pair_name} Close Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
+                            # Create a sell order
+                            self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'], size=size,
+                                                exectype=self.p.stoptype,
+                                                trailpercent=trailpercent,)
+                            self.o[d].addinfo(symbol=pair_name, type='Close')
 
-                    # Create a buy order
-                    self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'], size=size,
-                                         exectype=self.p.stoptype,
-                                         trailamount=None,
-                                         trailpercent=trailpercent,
-                                         )
-                    self.o[d].addinfo(symbol=pair_name, type='Close')
-                '''
-                base_currency, quote_currency = pair_name[:3], pair_name[3:]
-                before = getattr(self.eight_currencies_bid.lines, base_currency)[-1] - getattr(self.eight_currencies_bid.lines, quote_currency)[-1]
-                after = getattr(self.eight_currencies_bid.lines, base_currency)[0] - getattr(self.eight_currencies_bid.lines, quote_currency)[0]
-                # currency crossover
-                if (before <= 0.0 and after > 0.0) or (before >= 0.0 and after < 0.0):
-                    # If there is existing buy position, sell if there is crossover
-                    if self.last_open_position.get(d, None) and self.last_open_position[d].isbuy():
-                        self.log(f'{pair_name} Close Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
+                        # Else if the existing position is sell, buy if there is crossover
+                        elif self.last_open_position.get(d, None) and self.last_open_position[d].issell():
+                            self.log(f'{pair_name} Close Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
 
-                        # Create a sell order
-                        self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'], size=size,
-                                              exectype=self.p.stoptype,
-                                              trailpercent=trailpercent,)
-                        self.o[d].addinfo(symbol=pair_name, type='Close')
-
-                    # Else if the existing position is sell, buy if there is crossover
-                    elif self.last_open_position.get(d, None) and self.last_open_position[d].issell():
-                        self.log(f'{pair_name} Close Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
-
-                        # Create a buy order
-                        self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'], size=size,
-                                             exectype=self.p.stoptype,
-                                             trailpercent=trailpercent,)
-                        self.o[d].addinfo(symbol=pair_name, type='Close')
+                            # Create a buy order
+                            self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'], size=size,
+                                                exectype=self.p.stoptype,
+                                                trailpercent=trailpercent,)
+                            self.o[d].addinfo(symbol=pair_name, type='Close')
 
     def stop(self):
         self.log(','.join(f'{getattr(self.p, symbol):.3f}' for symbol in SYMBOLS), doprint=True)
@@ -685,80 +673,90 @@ class ACSTrailing(bt.Strategy):
         self.last_open_position_time = dict()
 
     def next(self):
-        buy_symbol, sell_symbol = self.get_buy_sell_symbol()
+        if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
+            return
 
-        # Iterate first half of data
-        for d in self.datas[:len(self.datas) // 2]:
-            pair_name = d._name[0:6]
+        elif self.datas[0].datetime.datetime(0) >= self.p.datetime_before:
+            if self.position:
+                self.close()
+            else:
+                self.env.runstop()
+                return
+        else:
+            buy_symbol, sell_symbol = self.get_buy_sell_symbol()
 
-            dt = d.datetime.datetime()
-            pos = self.getposition(d).size
+            # Iterate first half of data
+            for d in self.datas[:len(self.datas) // 2]:
+                pair_name = d._name[0:6]
 
-            size = self.p.one_mini_lot_size
-            trailamount = self.p.trailamount
+                dt = d.datetime.datetime()
+                pos = self.getposition(d).size
 
-            # Modifications for JPY markets
-            if 'JPY' in d._name:
-                size /= 100
-                trailamount *= 100
+                size = self.p.one_mini_lot_size
+                trailamount = self.p.trailamount
 
-            # If no open position
-            if not pos:
-                # Open a buy position if buy symbol is matched
-                if pair_name == buy_symbol:
-                    # Prevent double ordering
-                    if self.last_open_position_time.get(d, None) != dt:
-                        # Open a buy position
-                        self.log(f'{pair_name} Open Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
+                # Modifications for JPY markets
+                if 'JPY' in d._name:
+                    size /= 100
+                    trailamount *= 100
 
-                        self.last_open_position[d] = self.buy(data=self.dnames[pair_name + '_ASK'],  # use ask price data for buy
-                                                              size=size,)
+                # If no open position
+                if not pos:
+                    # Open a buy position if buy symbol is matched
+                    if pair_name == buy_symbol:
+                        # Prevent double ordering
+                        if self.last_open_position_time.get(d, None) != dt:
+                            # Open a buy position
+                            self.log(f'{pair_name} Open Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
 
-                        self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
+                            self.last_open_position[d] = self.buy(data=self.dnames[pair_name + '_ASK'],  # use ask price data for buy
+                                                                size=size,)
 
-                        self.last_open_position_time[d] = dt
+                            self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
 
-                        # Clear old limit orders for Close
-                        self.o[d] = None
+                            self.last_open_position_time[d] = dt
 
-                # Or open a sell position if sell symbol is matched
-                elif pair_name == sell_symbol:
-                    # Prevent double ordering
-                    if self.last_open_position_time.get(d, None) != dt:
-                        self.log(f'{pair_name} Open Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
+                            # Clear old limit orders for Close
+                            self.o[d] = None
 
-                        # Open a sell position
-                        self.last_open_position[d] = self.sell(data=self.dnames[pair_name + '_BID'],  # use bid price data for sell
-                                                               size=size,)
+                    # Or open a sell position if sell symbol is matched
+                    elif pair_name == sell_symbol:
+                        # Prevent double ordering
+                        if self.last_open_position_time.get(d, None) != dt:
+                            self.log(f'{pair_name} Open Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
 
-                        self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
+                            # Open a sell position
+                            self.last_open_position[d] = self.sell(data=self.dnames[pair_name + '_BID'],  # use bid price data for sell
+                                                                size=size,)
 
-                        self.last_open_position_time[d] = dt
+                            self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
 
-                        # Clear old limit orders for Close
-                        self.o[d] = None
+                            self.last_open_position_time[d] = dt
 
-            # Else if there is open position
-            elif pos and self.o.get(d, None) is None:
-                # If there is existing buy position, sell if there is acs < 0
-                if self.last_open_position.get(d, None) and self.last_open_position[d].isbuy() and pair_name == sell_symbol:
-                    self.log(f'{pair_name} Close Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
+                            # Clear old limit orders for Close
+                            self.o[d] = None
 
-                    # Create a trailing stop limit sell order
-                    self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'],
-                                          size=size,)
+                # Else if there is open position
+                elif pos and self.o.get(d, None) is None:
+                    # If there is existing buy position, sell if there is acs < 0
+                    if self.last_open_position.get(d, None) and self.last_open_position[d].isbuy() and pair_name == sell_symbol:
+                        self.log(f'{pair_name} Close Sell Created at {self.dnames[pair_name + "_BID"].close[0]:.5f}')
 
-                    self.o[d].addinfo(symbol=pair_name, type='Close')
+                        # Create a trailing stop limit sell order
+                        self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'],
+                                            size=size,)
 
-                # Else if the existing position is sell, buy if acs > 0
-                elif self.last_open_position.get(d, None) and self.last_open_position[d].issell() and pair_name == buy_symbol:
-                    self.log(f'{pair_name} Close Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
+                        self.o[d].addinfo(symbol=pair_name, type='Close')
 
-                    # Create a trailing stop limit buy order
-                    self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'],
-                                         size=size,)
+                    # Else if the existing position is sell, buy if acs > 0
+                    elif self.last_open_position.get(d, None) and self.last_open_position[d].issell() and pair_name == buy_symbol:
+                        self.log(f'{pair_name} Close Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
 
-                    self.o[d].addinfo(symbol=pair_name, type='Close')
+                        # Create a trailing stop limit buy order
+                        self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'],
+                                            size=size,)
+
+                        self.o[d].addinfo(symbol=pair_name, type='Close')
 
     def stop(self):
         # if self.p.trailamount != 0:
