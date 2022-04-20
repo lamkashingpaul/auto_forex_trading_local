@@ -21,6 +21,7 @@ django-debug-toolbar==3.2.4
 djangorestframework==3.13.1
 djangorestframework-datatables==0.7.0
 idna==3.3
+jenkspy==0.2.0
 kombu==5.2.4
 numpy==1.22.3
 packaging==21.3

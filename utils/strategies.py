@@ -151,7 +151,9 @@ class MovingAveragesCrossover(bt.Strategy):
         self.fast_sma = fast_sma = bt.ind.SMA(period=self.p.fast_ma_period)  # fast moving average
         self.slow_sma = slow_sma = bt.ind.SMA(period=self.p.slow_ma_period)  # slow moving average
         self.crossover = bt.ind.CrossOver(fast_sma, slow_sma)  # crossover signal
-        # self.strength = bt.ind.SMA(abs(fast_sma - fast_sma(-1)), period=1, subplot=True)
+
+        if self.p.use_strength:
+            self.strength = bt.ind.SMA(abs(fast_sma - fast_sma(-1)), period=1, subplot=True)
 
     def next(self):
         if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
@@ -176,7 +178,8 @@ class MovingAveragesCrossover(bt.Strategy):
                         return
 
                     # open position with target size
-                    self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}, diff: {self.strength.lines.sma[0]:.5f}')
+                    self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}'
+                             f', diff: {self.strength.lines.sma[0]:.5f}' if self.p.use_strength else '')
                     self.order_target_size(target=size)
 
             else:  # in the market
@@ -192,7 +195,8 @@ class MovingAveragesCrossover(bt.Strategy):
                 if self.p.use_strength and self.strength.lines.sma[0] < self.p.strength:
                     size = 0
 
-                self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}, diff: {self.strength.lines.sma[0]:.5f}')
+                self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}'
+                         f', diff: {self.strength.lines.sma[0]:.5f}' if self.p.use_strength else '')
                 self.order_target_size(target=size)
 
 
@@ -349,6 +353,9 @@ class CurrencyStrength(bt.Strategy):
         ('printlog', True),
         ('plot_ask_cs', False),
 
+        ('datetime_from', datetime.min),
+        ('datetime_before', datetime.max),
+
         ('period', 14),
 
         ('one_mini_lot_size', 10000),
@@ -488,7 +495,7 @@ class CurrencyStrength(bt.Strategy):
                             self.log(f'{pair_name} Open Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
 
                             self.last_open_position[d] = self.buy(data=self.dnames[pair_name + '_ASK'],  # use ask price data for buy
-                                                                size=size,)
+                                                                  size=size,)
 
                             self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
 
@@ -505,7 +512,7 @@ class CurrencyStrength(bt.Strategy):
 
                             # Open a sell position
                             self.last_open_position[d] = self.sell(data=self.dnames[pair_name + '_BID'],  # use bid price data for sell
-                                                                size=size,)
+                                                                   size=size,)
 
                             self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
 
@@ -527,8 +534,8 @@ class CurrencyStrength(bt.Strategy):
 
                             # Create a sell order
                             self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'], size=size,
-                                                exectype=self.p.stoptype,
-                                                trailpercent=trailpercent,)
+                                                  exectype=self.p.stoptype,
+                                                  trailpercent=trailpercent,)
                             self.o[d].addinfo(symbol=pair_name, type='Close')
 
                         # Else if the existing position is sell, buy if there is crossover
@@ -537,8 +544,8 @@ class CurrencyStrength(bt.Strategy):
 
                             # Create a buy order
                             self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'], size=size,
-                                                exectype=self.p.stoptype,
-                                                trailpercent=trailpercent,)
+                                                 exectype=self.p.stoptype,
+                                                 trailpercent=trailpercent,)
                             self.o[d].addinfo(symbol=pair_name, type='Close')
 
     def stop(self):
@@ -710,7 +717,7 @@ class ACSTrailing(bt.Strategy):
                             self.log(f'{pair_name} Open Buy Created at {self.dnames[pair_name + "_ASK"].close[0]:.5f}')
 
                             self.last_open_position[d] = self.buy(data=self.dnames[pair_name + '_ASK'],  # use ask price data for buy
-                                                                size=size,)
+                                                                  size=size,)
 
                             self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
 
@@ -727,7 +734,7 @@ class ACSTrailing(bt.Strategy):
 
                             # Open a sell position
                             self.last_open_position[d] = self.sell(data=self.dnames[pair_name + '_BID'],  # use bid price data for sell
-                                                                size=size,)
+                                                                   size=size,)
 
                             self.last_open_position[d].addinfo(symbol=pair_name, type=' Open')
 
@@ -744,7 +751,7 @@ class ACSTrailing(bt.Strategy):
 
                         # Create a trailing stop limit sell order
                         self.o[d] = self.sell(data=self.dnames[pair_name + '_BID'],
-                                            size=size,)
+                                              size=size,)
 
                         self.o[d].addinfo(symbol=pair_name, type='Close')
 
@@ -754,7 +761,7 @@ class ACSTrailing(bt.Strategy):
 
                         # Create a trailing stop limit buy order
                         self.o[d] = self.buy(data=self.dnames[pair_name + '_ASK'],
-                                            size=size,)
+                                             size=size,)
 
                         self.o[d].addinfo(symbol=pair_name, type='Close')
 
@@ -807,3 +814,100 @@ class ACSTrailing(bt.Strategy):
         sell_symbol = list(bid_acs.keys())[-1]
 
         return buy_symbol, sell_symbol
+
+
+class SignalTrading(bt.Strategy):
+    '''
+    Use modified volume line as trading signal for buy and sell
+    '''
+    params = (
+        ('print_log', False),
+        ('optimization_dict', dict()),
+
+        ('datetime_from', datetime.min),
+        ('datetime_before', datetime.max),
+
+        ('one_lot_size', 100000),
+    )
+
+    def log(self, txt, dt=None, doprint=False):
+        ''' Logging function fot this strategy'''
+        if self.params.print_log or doprint:
+            dt = dt or self.datas[0].datetime.date(0)
+            print(f'{dt.isoformat()}, {txt}')
+
+    def notify_order(self, order):
+        if order.status in [order.Submitted, order.Accepted]:
+            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
+            return
+
+        # Check if an order has been completed
+        # Attention: broker could reject order if not enough cash
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.log(f' BUY EXECUTED, '
+                         f'Price: {order.executed.price:>9.5f}, '
+                         f'Cost: {order.executed.value:>9.2f}, '
+                         f'Comm: {order.executed.comm:>9.2f}',
+                         dt=bt.num2date(order.executed.dt))
+            else:  # Sell
+                self.log(f'SELL EXECUTED, '
+                         f'Price: {order.executed.price:>9.5f}, '
+                         f'Cost: {order.executed.value:>9.2f}, '
+                         f'Comm: {order.executed.comm:>9.2f}',
+                         dt=bt.num2date(order.executed.dt))
+
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            self.log('Order Canceled/Margin/Rejected')
+
+    def notify_trade(self, trade):
+        if not trade.isclosed:
+            return
+
+        self.log(f'({bt.num2date(trade.dtopen)}), {trade.data._name}, '
+                 f'Gross: {trade.pnl:>9.2f}, '
+                 f'Net : {trade.pnlcomm:>9.2f}, ',
+                 dt=bt.num2date(trade.dtclose))
+
+    def __init__(self):
+        if self.p.optimization_dict:
+            for key, value in self.p.optimization_dict.items():
+                setattr(self.p, key, value)
+
+        if 'JPY' in self.datas[0]._name:
+            self.p.one_lot_size /= 100
+
+        self.signal = self.datavolume = self.datas[0].volume
+
+    def next(self):
+        if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
+            return
+
+        elif self.datas[0].datetime.datetime(0) >= self.p.datetime_before:
+            if self.position:
+                self.close()
+            else:
+                self.env.runstop()
+                return
+        else:
+            size = self.p.one_lot_size
+
+            if not self.position:  # not in the market
+                if self.signal != 0:  # if there is signal
+                    if self.signal < 0:  # negate the size
+                        size = -size
+
+                    # open position with target size
+                    self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}')
+                    self.order_target_size(target=size)
+
+            else:  # in the market
+                if self.position.size > 0 and self.signal < 0:  # having buy position and sell signal
+                    size = -size
+                elif self.position.size < 0 and self.signal > 0:  # having sell position and buy signal
+                    pass
+                else:
+                    return
+
+                self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}')
+                self.order_target_size(target=size)

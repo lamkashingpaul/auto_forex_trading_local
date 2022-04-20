@@ -1,15 +1,8 @@
 # Vscode settings
 .vscode/
 
-# Historical data
-*data/
-
-# Backtraders's output
-*reports/
-*plots/
-
-# Report figures
-*figures/
+# Report pickles
+*.pickle
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
