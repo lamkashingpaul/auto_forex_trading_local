@@ -9,18 +9,7 @@ import math
 import backtrader as bt
 
 
-class BuyAndHold(bt.Strategy):
-
-    params = (
-        ('print_log', False),
-        ('optimization_dict', dict()),
-
-        ('one_lot_size', 100000),
-
-        ('datetime_from', datetime.min),
-        ('datetime_before', datetime.max),
-    )
-
+class BasicStrategyWithLog(bt.Strategy):
     def log(self, txt, dt=None, doprint=False):
         ''' Logging function fot this strategy'''
         if self.params.print_log or doprint:
@@ -59,6 +48,19 @@ class BuyAndHold(bt.Strategy):
                  f'Gross: {trade.pnl:>9.2f}, '
                  f'Net : {trade.pnlcomm:>9.2f}, ',
                  dt=bt.num2date(trade.dtclose))
+
+
+class BuyAndHold(BasicStrategyWithLog):
+
+    params = (
+        ('print_log', False),
+        ('optimization_dict', dict()),
+
+        ('one_lot_size', 100000),
+
+        ('datetime_from', datetime.min),
+        ('datetime_before', datetime.max),
+    )
 
     def __init__(self):
         if self.p.optimization_dict:
@@ -82,7 +84,7 @@ class BuyAndHold(bt.Strategy):
             self.buy(size=lots * self.p.one_lot_size)
 
 
-class MovingAveragesCrossover(bt.Strategy):
+class MovingAveragesCrossover(BasicStrategyWithLog):
 
     params = (
         ('print_log', False),
@@ -100,45 +102,6 @@ class MovingAveragesCrossover(bt.Strategy):
         ('slow_ma_period', 20),
 
     )
-
-    def log(self, txt, dt=None, doprint=False):
-        ''' Logging function fot this strategy'''
-        if self.params.print_log or doprint:
-            dt = dt or self.datas[0].datetime.date(0)
-            print(f'{dt.isoformat()}, {txt}')
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        # Attention: broker could reject order if not enough cash
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.log(f' BUY EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-            else:  # Sell
-                self.log(f'SELL EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
-
-    def notify_trade(self, trade):
-        if not trade.isclosed:
-            return
-
-        self.log(f'({bt.num2date(trade.dtopen)}), {trade.data._name}, '
-                 f'Gross: {trade.pnl:>9.2f}, '
-                 f'Net : {trade.pnlcomm:>9.2f}, ',
-                 dt=bt.num2date(trade.dtclose))
 
     def __init__(self):
         if self.p.optimization_dict:
@@ -200,7 +163,7 @@ class MovingAveragesCrossover(bt.Strategy):
                 self.order_target_size(target=size)
 
 
-class RSIPositionSizing(bt.Strategy):
+class RSIPositionSizing(BasicStrategyWithLog):
 
     params = (
         ('print_log', False),
@@ -224,49 +187,13 @@ class RSIPositionSizing(bt.Strategy):
 
     )
 
-    def log(self, txt, dt=None, doprint=False):
-        ''' Logging function fot this strategy'''
-        if self.params.print_log or doprint:
-            dt = dt or self.datas[0].datetime.date(0)
-            print(f'{dt.isoformat()}, {txt}')
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        # Attention: broker could reject order if not enough cash
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.log(f' BUY EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-            else:  # Sell
-                self.log(f'SELL EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
-
-    def notify_trade(self, trade):
-        if not trade.isclosed:
-            return
-
-        self.log(f'({bt.num2date(trade.dtopen)}), {trade.data._name}, '
-                 f'Gross: {trade.pnl:>9.2f}, '
-                 f'Net : {trade.pnlcomm:>9.2f}, ',
-                 dt=bt.num2date(trade.dtclose))
-
     def __init__(self):
         if self.p.optimization_dict:
             for key, value in self.p.optimization_dict.items():
                 setattr(self.p, key, value)
+
+        if 'JPY' in self.datas[0]._name:
+            self.p.one_lot_size /= 100
 
         self.max_buy_position = self.p.one_lot_size
         self.max_sell_position = self.p.one_lot_size
@@ -340,7 +267,7 @@ class RSIPositionSizing(bt.Strategy):
                         self.order_target_size(target=-self.position.size)
 
 
-class CurrencyStrength(bt.Strategy):
+class CurrencyStrength(BasicStrategyWithLog):
     '''
     Note that the strategy is based on EightCurrenciesIndicator
     Datafeeds of bid prices of 28 symbols are first added before ask prices
@@ -350,7 +277,9 @@ class CurrencyStrength(bt.Strategy):
 
     # Default parameters for plotting and trading strategy
     params = (
-        ('printlog', True),
+        ('print_log', False),
+        ('optimization_dict', dict()),
+
         ('plot_ask_cs', False),
 
         ('datetime_from', datetime.min),
@@ -372,47 +301,11 @@ class CurrencyStrength(bt.Strategy):
         ('NZDUSD', 1.000), ('USDCAD', 1.000), ('USDCHF', 1.000), ('USDJPY', 1.000),
     )
 
-    def log(self, txt, dt=None, doprint=False):
-        if self.params.printlog or doprint:
-            dt = dt or self.datas[0].datetime.datetime()
-            print(f'{dt.isoformat()}, {txt}')
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        # Attention: broker could reject order if not enough cash
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.log(f'{order.info.symbol} ({order.info.type}), '
-                         f' BUY EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-            else:  # Sell
-                self.log(f'{order.info.symbol} ({order.info.type}), '
-                         f'SELL EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
-
-    def notify_trade(self, trade):
-        if not trade.isclosed:
-            return
-
-        self.log(f'({bt.num2date(trade.dtopen)}), {trade.data._name}, '
-                 f'Gross: {trade.pnl:>9.2f}, '
-                 f'Net : {trade.pnlcomm:>9.2f}, ',
-                 dt=bt.num2date(trade.dtclose))
-
     def __init__(self):
+        if self.p.optimization_dict:
+            for key, value in self.p.optimization_dict.items():
+                setattr(self.p, key, value)
+
         # Add ACS28 indicator
         self.eight_currencies_bid = EightCurrenciesIndicator(*self.datas[:28],
                                                              period=self.p.period,
@@ -566,7 +459,7 @@ class CurrencyStrength(bt.Strategy):
         return buy_symbol, sell_symbol
 
 
-class ACSTrailing(bt.Strategy):
+class ACSTrailing(BasicStrategyWithLog):
     '''
     Note that the strategy is based on TwentyeightPairsIndicator
     Datafeeds of bid prices of 28 symbols are first added before ask prices
@@ -576,7 +469,9 @@ class ACSTrailing(bt.Strategy):
 
     # Default parameters for plotting and trading strategy
     params = (
-        ('printlog', True),
+        ('print_log', True),
+        ('optimization_dict', dict()),
+
         ('plot_ask_acs', False),
 
         ('fast_ma_period', 3),
@@ -596,47 +491,11 @@ class ACSTrailing(bt.Strategy):
         ('NZDUSD', 0.700), ('USDCAD', 1.000), ('USDCHF', 1.000), ('USDJPY', 1.000),
     )
 
-    def log(self, txt, dt=None, doprint=False):
-        if self.params.printlog or doprint:
-            dt = dt or self.datas[0].datetime.datetime()
-            print(f'{dt.isoformat()}, {txt}')
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        # Attention: broker could reject order if not enough cash
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.log(f'{order.info.symbol} ({order.info.type}), '
-                         f' BUY EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-            else:  # Sell
-                self.log(f'{order.info.symbol} ({order.info.type}), '
-                         f'SELL EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
-
-    def notify_trade(self, trade):
-        if not trade.isclosed:
-            return
-
-        self.log(f'({bt.num2date(trade.dtopen)}), {trade.data._name}, '
-                 f'Gross: {trade.pnl:>9.2f}, '
-                 f'Net : {trade.pnlcomm:>9.2f}, ',
-                 dt=bt.num2date(trade.dtclose))
-
     def __init__(self):
+        if self.p.optimization_dict:
+            for key, value in self.p.optimization_dict.items():
+                setattr(self.p, key, value)
+
         # Add ACS28 indicator
         self.twentyeight_pairs_bid = TwentyeightPairsIndicator(*self.datas[:28],
                                                                fast_ma_period=self.p.fast_ma_period,
@@ -816,9 +675,9 @@ class ACSTrailing(bt.Strategy):
         return buy_symbol, sell_symbol
 
 
-class SignalTrading(bt.Strategy):
+class ShiftPrediction(BasicStrategyWithLog):
     '''
-    Use modified volume line as trading signal for buy and sell
+    Prediction next 30-th day price using last 30-th day price
     '''
     params = (
         ('print_log', False),
@@ -828,46 +687,13 @@ class SignalTrading(bt.Strategy):
         ('datetime_before', datetime.max),
 
         ('one_lot_size', 100000),
+
+        ('stoptype', bt.Order.StopTrail),
+        ('trailamount', 0.01000),
+        ('trailpercent', 0.00008),
+
+        ('shift', 1)
     )
-
-    def log(self, txt, dt=None, doprint=False):
-        ''' Logging function fot this strategy'''
-        if self.params.print_log or doprint:
-            dt = dt or self.datas[0].datetime.date(0)
-            print(f'{dt.isoformat()}, {txt}')
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        # Attention: broker could reject order if not enough cash
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.log(f' BUY EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-            else:  # Sell
-                self.log(f'SELL EXECUTED, '
-                         f'Price: {order.executed.price:>9.5f}, '
-                         f'Cost: {order.executed.value:>9.2f}, '
-                         f'Comm: {order.executed.comm:>9.2f}',
-                         dt=bt.num2date(order.executed.dt))
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
-
-    def notify_trade(self, trade):
-        if not trade.isclosed:
-            return
-
-        self.log(f'({bt.num2date(trade.dtopen)}), {trade.data._name}, '
-                 f'Gross: {trade.pnl:>9.2f}, '
-                 f'Net : {trade.pnlcomm:>9.2f}, ',
-                 dt=bt.num2date(trade.dtclose))
 
     def __init__(self):
         if self.p.optimization_dict:
@@ -876,8 +702,12 @@ class SignalTrading(bt.Strategy):
 
         if 'JPY' in self.datas[0]._name:
             self.p.one_lot_size /= 100
+            self.p.trailamount *= 100
+            self.p.trailpercent *= 100
 
-        self.signal = self.datavolume = self.datas[0].volume
+        self.forecast_price = self.datas[0].close(-self.p.shift)
+        self.last_open_position = None
+        self.order = None
 
     def next(self):
         if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
@@ -892,22 +722,98 @@ class SignalTrading(bt.Strategy):
         else:
             size = self.p.one_lot_size
 
-            if not self.position:  # not in the market
-                if self.signal != 0:  # if there is signal
-                    if self.signal < 0:  # negate the size
-                        size = -size
+            print(self.datas[0].datetime.datetime(0), self.forecast_price[0])
 
-                    # open position with target size
-                    self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}')
-                    self.order_target_size(target=size)
+            if not self.position:
+                if self.forecast_price[0] > self.datas[0].close[0]:
+                    self.last_open_position = self.buy(size=size)
 
-            else:  # in the market
-                if self.position.size > 0 and self.signal < 0:  # having buy position and sell signal
-                    size = -size
-                elif self.position.size < 0 and self.signal > 0:  # having sell position and buy signal
-                    pass
-                else:
-                    return
+                elif self.forecast_price[0] < self.datas[0].close[0]:
+                    self.last_open_position = self.sell(size=size)
+                self.order = None
 
-                self.log(f'fast: {self.fast_sma.lines.sma[0]:.5f}, slow: {self.slow_sma.lines.sma[0]:.5f}')
-                self.order_target_size(target=size)
+            elif self.order is None:
+                if self.last_open_position:
+                    if self.last_open_position.isbuy():
+                        self.log(f'Close Sell Created at {self.datas[0].close[0]:.5f}')
+                        self.order = self.sell(size=size,
+                                               exectype=self.p.stoptype,
+                                               trailpercent=self.p.trailpercent,)
+
+                    elif self.last_open_position.issell():
+                        self.log(f'Close Buy Created at {self.datas[0].close[0]:.5f}')
+                        self.order = self.buy(size=size,
+                                              exectype=self.p.stoptype,
+                                              trailpercent=self.p.trailpercent,)
+
+
+class ForecastTrading(BasicStrategyWithLog):
+    '''
+    Use modified openinterest line as forecast price for buy and sell
+    '''
+    params = (
+        ('print_log', False),
+        ('optimization_dict', dict()),
+
+        ('datetime_from', datetime.min),
+        ('datetime_before', datetime.max),
+
+        ('one_lot_size', 100000),
+
+        ('delta', 0.00005),
+
+        ('stoptype', bt.Order.StopTrail),
+        ('trailamount', 0.01000),
+        ('trailpercent', 0.00008),
+    )
+
+    def __init__(self):
+        if self.p.optimization_dict:
+            for key, value in self.p.optimization_dict.items():
+                setattr(self.p, key, value)
+
+        if 'JPY' in self.datas[0]._name:
+            self.p.one_lot_size /= 100
+            self.p.trailamount *= 100
+            self.p.trailpercent *= 100
+
+        self.forecast_price = bt.ind.SMA(self.datas[0].openinterest, period=1)
+
+        self.last_open_position = None
+        self.order = None
+
+    def next(self):
+        if self.datas[0].datetime.datetime(0) < self.p.datetime_from:
+            return
+
+        elif self.datas[0].datetime.datetime(0) >= self.p.datetime_before:
+            if self.position:
+                self.close()
+            else:
+                self.env.runstop()
+                return
+        else:
+            size = self.p.one_lot_size
+
+            if not self.position:
+                if self.forecast_price[0] > (1 + self.p.delta) * self.datas[0].close[0]:
+                    self.last_open_position = self.buy(size=size)
+
+                elif self.forecast_price[0] < (1 - self.p.delta) * self.datas[0].close[0]:
+                    self.last_open_position = self.sell(size=size)
+
+                self.order = None
+
+            elif self.order is None:
+                if self.last_open_position:
+                    if self.last_open_position.isbuy():
+                        self.log(f'Close Sell Created at {self.datas[0].close[0]:.5f}')
+                        self.order = self.sell(size=size,
+                                               exectype=self.p.stoptype,
+                                               trailamount=self.p.trailamount,)
+
+                    elif self.last_open_position.issell():
+                        self.log(f'Close Buy Created at {self.datas[0].close[0]:.5f}')
+                        self.order = self.buy(size=size,
+                                              exectype=self.p.stoptype,
+                                              trailamount=self.p.trailamount,)

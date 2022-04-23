@@ -165,3 +165,29 @@ def plot_sliding_comparison(price, inputs, output, keep_zero_rtot=False, show=Fa
         fig.show()
 
     fig.write_html(file=f'{output}_plot_sliding_comparison.html')
+
+
+def plot_real_and_prediction_with_residual(x, y, y_predicted, output, show=False):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(name='close', x=x, y=y, mode='lines'))
+    fig.add_trace(go.Scatter(name='today_predicted_close', x=x, y=y_predicted, mode='markers'))
+
+    fig.update_layout(title='Residuals of Predicted and Real Close Prices',
+                      xaxis_title='Time', yaxis_title='Price'
+                      )
+
+    shapes = []
+    for time, price, prediction in zip(x, y, y_predicted):
+        shapes.append(go.layout.Shape(x0=time, y0=prediction,
+                                      x1=time, y1=price,
+                                      type='line', line=dict(color='black', width=1),
+                                      opacity=0.5,
+                                      layer='above')
+                      )
+
+    fig.update_layout(shapes=shapes)
+
+    if show:
+        fig.show()
+
+    fig.write_html(file=f'{output}_plot_real_and_prediction_with_residual.html')

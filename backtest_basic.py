@@ -5,7 +5,6 @@ from utils.constants import PERIODS, SYMBOLS
 from utils.datafeeds import DownloadedCSVData, PSQLData
 import argparse
 import backtrader as bt
-import numbers
 import os
 import sys
 
@@ -13,14 +12,31 @@ import sys
 def get_default_parser(description='Backtest Basic'):
     parser = argparse.ArgumentParser(description=description)
 
+    # load trained model
+    parser.add_argument('--model', '-m', dest='model',
+                        default='', required=False,
+                        help='input trained model', metavar='FILE')
+
+    parser.add_argument('--scaler', '-sc', dest='scaler',
+                        default='', required=False,
+                        help='input scaler for model', metavar='FILE')
+
+    parser.add_argument('--align', '-a', action='store_true',
+                        required=False, help='align future prediction to today')
+
+    # arguments for backtest data from local csv files
+    parser.add_argument('--csv', '-c', nargs='+', default=[],
+                        required=False, help='input csv files', metavar='FILE')
+
     # arguments for getting price data from local csv file
     parser.add_argument('--dataname', '-d', dest='dataname',
                         default='', required=False,
                         help='input price data csv file', metavar='FILE')
 
-    # arguments for backtest data from local csv files
-    parser.add_argument('--csv', '-c', nargs='+', default=[],
-                        required=False, help='input csv files', metavar='FILE')
+    # arguments for getting price data from local csv file
+    parser.add_argument('--prediction', '-pred', dest='prediction',
+                        type=int, default=-1, required=False,
+                        help='data column index for prediction')
 
     # arguments for getting data from PostgreSQL
     parser.add_argument('--symbol', '-s', choices=SYMBOLS,
@@ -48,7 +64,18 @@ def get_default_parser(description='Backtest Basic'):
     return parser
 
 
-def get_default_cerebro(dataname='', symbol='EURUSD', period='H1',
+def get_output_directory_and_path(script_name, filename, fromdate, todate):
+    modpath = os.path.dirname(os.path.abspath(script_name))
+    output_directory = os.path.join(modpath, 'reports', os.path.splitext(os.path.basename(filename))[0])
+    Path(output_directory).mkdir(parents=True, exist_ok=True)
+
+    output_filename = f'{datetime.now().strftime("%Y%m%d_%H%M%S")}_report_from_{fromdate.strftime("%Y%m%d_%H%M%S")}_to_{todate.strftime("%Y%m%d_%H%M%S")}'
+    output_path = os.path.join(output_directory, output_filename)
+
+    return output_directory, output_path
+
+
+def get_default_cerebro(model='', scaler='', csv='', dataname='', prediction=-1, symbol='EURUSD', period='H1',
                         fromdate=date(2021, 1, 1), todate=date(2022, 1, 1),
                         optimization=False, cash=200000, leverage=1, **kwargs):
 
@@ -73,7 +100,7 @@ def get_default_cerebro(dataname='', symbol='EURUSD', period='H1',
     cerebro.addanalyzer(bt.analyzers.Transactions, headers=True)
 
     if dataname:
-        data = DownloadedCSVData(dataname=dataname)
+        data = DownloadedCSVData(dataname=dataname, openinterest=prediction)
 
     else:
         _, timeframe, compression, = PERIODS[period]

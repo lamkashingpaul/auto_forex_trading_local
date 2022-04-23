@@ -34,5 +34,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # 09_buy_and_hold_sliding_backtest.py -from 2016-01-01 -to 2021-01-01 -o -params 90 1 -d ./data/forex_2016_2021/hour_bar/bid/EURUSD_from_20160101_to_20201231_H1_BID.csv
+    # 09_buy_and_hold_sliding_backtest.py -from 2016-01-01 -to 2021-01-01 -o -params 90 1 -d ./data/forex_2016_2021/hour_bar/bid/EURUSD_from_20160101_to_20211231_H1_BID.csv
     main()

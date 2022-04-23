@@ -17,5 +17,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # 12_sliding_comparison.py -d ./data/forex_2016_2021/hour_bar/bid/EURUSD_from_20160101_to_20201231_H1_BID.csv -c ./reports/09_buy_and_hold_sliding_backtest/strats.csv ./reports/10_sma_strength_sliding_backtest/strats.csv ./reports/11_rsi_sizing_sliding_backtest/strats.csv
+    # 12_sliding_comparison.py -d ./data/forex_2016_2021/hour_bar/bid/EURUSD_from_20160101_to_20211231_H1_BID.csv -c ./reports/09_buy_and_hold_sliding_backtest/strats.csv ./reports/10_sma_strength_sliding_backtest/strats.csv ./reports/11_rsi_sizing_sliding_backtest/strats.csv
     main()
