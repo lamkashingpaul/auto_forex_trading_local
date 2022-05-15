@@ -22,8 +22,8 @@ def main():
     _, output_path = backtest_basic.get_output_directory_and_path(sys.argv[0], __file__, args.fromdate, args.todate)
     dataname = args.dataname
 
-    fromdate = datetime.combine(args.fromdate, datetime.min.time())
-    todate = datetime.combine(args.todate, datetime.min.time())
+    # fromdate = datetime.combine(args.fromdate, datetime.min.time())
+    # todate = datetime.combine(args.todate, datetime.min.time())
 
     # read csv file
     df = pd.read_csv(dataname)
@@ -67,9 +67,9 @@ def main():
 
         # define lookback and forecast windows size
         n_lookback = 60
-        n_forecast = 30
+        n_forecast = 5
 
-        # create train data windows of size 60
+        # create train data windows of size n_lookback
         train_data = y[:t]
         x_train, y_train = [], []
         for i in range(n_lookback, len(train_data) - n_forecast + 1):
@@ -102,7 +102,7 @@ def main():
         # train and save LSTM model
         optimizer = keras.optimizers.Adam(learning_rate=0.005)
         model.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mean_absolute_error', 'mean_squared_error'])
-        model.fit(x_train, y_train, batch_size=32, epochs=100, validation_split=0.2, callbacks=[csv_logger])
+        model.fit(x_train, y_train, batch_size=32, epochs=128, validation_split=0.2, callbacks=[csv_logger])
 
         model.save(f'{output_path}_trained_lstm_model.h5', save_format='h5')  # save model
         joblib.dump(scaler, f'{output_path}_scaler.bin', compress=True)
@@ -129,6 +129,22 @@ def main():
     r2_score = 0.9953133676760908
     mean_absolute_error = 0.0017802945017196376
     mean_squared_error = 5.862390470963261e-06
+
+    day bar close price (n_lookback = 60, n_forecast = 1, lr=0.005)
+    r2_score = 0.9850548105754098
+    mean_absolute_error = 0.0032479854584415387
+    mean_squared_error = 1.9807706438586098e-05
+
+    day bar open price (n_lookback = 60, n_forecast = 1, lr=0.005)
+    r2_score = 0.963246566244455
+    mean_absolute_error = 0.005924528643987875
+    mean_squared_error = 4.816842186826988e-05
+
+    day bar close price (n_lookback = 60, n_forecast = 5, lr=0.005)
+    r2_score = 0.9492502349545558
+    mean_absolute_error = 0.005825799943716558
+    mean_squared_error = 6.671470455828521e-05
+
     '''
 
     # generate n_forecast predictions plot
@@ -155,5 +171,7 @@ def main():
 
 if __name__ == '__main__':
     # 16_lstm_price_prediction_model.py -from 2011-01-01 -to 2021-01-01 -d ./data/forex_2011_2020/hour_bar/bid/EURUSD_from_20110101_to_20201231_H1_BID.csv
+
+    # 16_lstm_price_prediction_model.py -from 2011-01-01 -to 2021-01-01 -d ./data/forex_2011_2020/day_bar/bid/EURUSD_from_20110101_to_20201231_D1_BID.csv
 
     main()

@@ -22,7 +22,7 @@ def main():
     scaler = joblib.load(args.scaler)
     y = scaler.transform(y)
 
-    X = [y[i - n_lookback:i].reshape(1, n_lookback, 1) for i in range(n_lookback, len(y) - n_forecast + 1)]
+    X = [y[i - n_lookback:i].reshape(1, n_lookback, 1) for i in range(n_lookback, len(y) - n_forecast + 2)]
     Y = [scaler.inverse_transform(model.predict(x).reshape(-1, 1)) for x in X]
 
     y_predicted = np.array(Y).astype(np.float64).squeeze()
