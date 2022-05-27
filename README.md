@@ -4,5 +4,4 @@
 https://github.com/lamkashingpaul/auto_forex_trading_project
 
 # Project Homepage
-
 https://lamkashingpaul.com/forex/
