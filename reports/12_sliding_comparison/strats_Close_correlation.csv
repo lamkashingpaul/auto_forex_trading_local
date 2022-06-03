@@ -1,5 +1,0 @@
-,Close,09_buy_and_hold_sliding_backtest_returns_rtot,10_sma_strength_sliding_backtest_returns_rtot,11_rsi_sizing_sliding_backtest_returns_rtot
-Close,1.0,0.4579331939313729,-0.04863562244494026,-0.36658259065145626
-09_buy_and_hold_sliding_backtest_returns_rtot,0.4579331939313729,1.0,0.14961392054973083,-0.7806431254184183
-10_sma_strength_sliding_backtest_returns_rtot,-0.04863562244494026,0.14961392054973083,1.0,0.0020666298394965517
-11_rsi_sizing_sliding_backtest_returns_rtot,-0.36658259065145626,-0.7806431254184183,0.0020666298394965517,1.0

@@ -1,6 +1,9 @@
 # Vscode settings
 .vscode/
 
+# reports
+reports/
+
 # Report pickles
 *.pickle
 
